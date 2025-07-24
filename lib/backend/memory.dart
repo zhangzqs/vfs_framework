@@ -152,7 +152,7 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     }
 
     // 递归创建父目录
-    if (options.recursive) {
+    if (options.createParents) {
       Path? current = path;
       while (current != null) {
         final currentKey = current.toString();
@@ -234,7 +234,7 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
         if (parent != null) {
           await createDirectory(
             parent,
-            options: CreateDirectoryOptions(recursive: true),
+            options: CreateDirectoryOptions(createParents: true),
           );
         }
 

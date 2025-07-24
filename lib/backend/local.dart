@@ -61,27 +61,11 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
     }
   }
 
-  @override
-  Stream<FileStatus> list(
+  Stream<FileStatus> nonRecursiveList(
     Path path, {
     ListOptions options = const ListOptions(),
   }) async* {
-    final localPath = _toLocalPath(path);
-
-    // 检查路径是否存在（不区分文件或目录）
-    if (!await FileSystemEntity.isFile(localPath) &&
-        !await FileSystemEntity.isDirectory(localPath)) {
-      throw FileSystemException.notFound(path);
-    }
-
-    // 检查是否是目录
-    if (!await FileSystemEntity.isDirectory(localPath)) {
-      throw FileSystemException.notADirectory(path);
-    }
-
-    final directory = Directory(localPath);
-    // 遍历目录
-    await for (final entity in directory.list()) {
+    await for (final entity in Directory(_toLocalPath(path)).list()) {
       try {
         final stat = await entity.stat();
         yield FileStatus(
@@ -89,12 +73,37 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
           size: stat.type == FileSystemEntityType.file ? stat.size : null,
           isDirectory: stat.type == FileSystemEntityType.directory,
         );
-      } on FileSystemException {
-        continue; // 跳过无法访问的文件
       } on IOException {
         continue; // 跳过IO错误的文件
       }
     }
+  }
+
+  @override
+  Stream<FileStatus> list(
+    Path path, {
+    ListOptions options = const ListOptions(),
+  }) {
+    // 遍历目录
+    return super.listImplByNonRecursive(
+      nonRecursiveList: nonRecursiveList,
+      path: path,
+      options: options,
+    );
+  }
+
+  Future<void> nonRecursiveCopyFile(
+    Path source,
+    Path destination, {
+    CopyOptions options = const CopyOptions(),
+  }) {
+    return copyFileByReadAndWrite(
+      source,
+      destination,
+      openWrite: openWrite,
+      openRead: openRead,
+    );
+    // return File(_toLocalPath(source)).copy(_toLocalPath(destination));
   }
 
   @override
@@ -103,75 +112,32 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
     Path destination, {
     CopyOptions options = const CopyOptions(),
   }) async {
-    // 检查源是否存在
-    final srcStat = await stat(source);
-    if (srcStat == null) {
-      throw FileSystemException.notFound(source);
-    }
-    // 检查目标是否已存在
-    final destStat = await stat(destination);
-    if (destStat == null) {
-      if (srcStat.isDirectory) {
-        // 源是目录，目标不存在
-      } else {
-        // 源是文件，目标不存在
-      }
-    } else {
-      if (srcStat.isDirectory) {
-      } else {}
-    }
-
-    try {
-      final sourcePath = _toLocalPath(source);
-      final destPath = _toLocalPath(destination);
-
-      // 如果是文件，直接复制
-      if (await FileSystemEntity.isFile(sourcePath)) {
-        await File(sourcePath).copy(destPath);
-      }
-      // 如果是目录，递归复制
-      else if (await FileSystemEntity.isDirectory(sourcePath)) {
-        throw UnimplementedError("Directory copy not implemented yet");
-        // await Directory(sourcePath).copy(destPath);
-      }
-      // 其他类型（如链接）
-      else {
-        throw FileSystemException.unsupportedEntity(source);
-      }
-    } on FileSystemException {
-      rethrow;
-    } on IOException catch (e) {
-      throw FileSystemException(
-        code: FileSystemErrorCode.ioError,
-        message: 'Failed to copy: ${e.toString()}',
-        path: source,
-      );
-    }
+    return copyImplByNonRecursive(
+      source: source,
+      destination: destination,
+      options: options,
+      nonRecursiveCopyFile: nonRecursiveCopyFile,
+      nonRecursiveList: nonRecursiveList,
+      nonRecursiveCreateDirectory: nonRecursiveCreateDirectory,
+    );
   }
 
-  @override
-  Future<void> createDirectory(
+  Future<void> nonRecursiveCreateDirectory(
     Path path, {
     CreateDirectoryOptions options = const CreateDirectoryOptions(),
   }) async {
-    // 如果要创建的目录已存在，则报错
-    if (await exists(path)) {
-      throw FileSystemException.alreadyExists(path);
-    }
     try {
       final localPath = _toLocalPath(path);
       final directory = Directory(localPath);
 
-      if (options.recursive) {
-        await directory.create(recursive: true);
-      } else {
-        // 检查父目录是否存在
-        final parent = directory.parent;
-        if (!await parent.exists()) {
-          throw FileSystemException.notFound(_toPath(parent.path));
-        }
-        await directory.create();
+      // 检查父目录是否存在
+      final parent = directory.parent;
+      if (!await parent.exists()) {
+        throw FileSystemException.notFound(_toPath(parent.path));
       }
+
+      // 创建目录
+      await directory.create();
     } on FileSystemException {
       rethrow;
     } on IOException catch (e) {
@@ -184,20 +150,21 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
   }
 
   @override
-  Future<void> delete(
+  Future<void> createDirectory(
+    Path path, {
+    CreateDirectoryOptions options = const CreateDirectoryOptions(),
+  }) {
+    return createDirectoryImplByNonRecursive(
+      nonRecursiveCreateDirectory: nonRecursiveCreateDirectory,
+      path: path,
+      options: options,
+    );
+  }
+
+  Future<void> nonRecursiveDelete(
     Path path, {
     DeleteOptions options = const DeleteOptions(),
   }) async {
-    // 如果目标路径找不到则报错
-    if (!await exists(path)) {
-      throw FileSystemException.notFound(path);
-    }
-    // 如果是目录且不允许递归删除且目录不为空，则报错
-    if (await FileSystemEntity.isDirectory(_toLocalPath(path)) &&
-        !options.recursive &&
-        !await Directory(_toLocalPath(path)).list().isEmpty) {
-      throw FileSystemException.notEmptyDirectory(path);
-    }
     try {
       final localPath = _toLocalPath(path);
       final entity = FileSystemEntity.typeSync(localPath);
@@ -213,20 +180,30 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
           await Link(localPath).delete();
           break;
         default:
+          throw FileSystemException.unsupportedEntity(path);
       }
     } on FileSystemException {
       rethrow;
     } on IOException catch (e) {
-      // 处理目录非空错误
-      if (e.toString().contains('Directory not empty')) {
-        throw FileSystemException.notEmptyDirectory(path);
-      }
       throw FileSystemException(
         code: FileSystemErrorCode.ioError,
         message: 'Failed to delete: ${e.toString()}',
         path: path,
       );
     }
+  }
+
+  @override
+  Future<void> delete(
+    Path path, {
+    DeleteOptions options = const DeleteOptions(),
+  }) {
+    return deleteImplByNonRecursive(
+      nonRecursiveDelete: nonRecursiveDelete,
+      nonRecursiveList: nonRecursiveList,
+      path: path,
+      options: options,
+    );
   }
 
   @override

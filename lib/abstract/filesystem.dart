@@ -23,7 +23,8 @@ final class StatOptions {
 }
 
 final class ListOptions {
-  const ListOptions();
+  final bool recursive;
+  const ListOptions({this.recursive = false});
 }
 
 final class CopyOptions {
@@ -39,9 +40,9 @@ final class DeleteOptions {
 }
 
 final class CreateDirectoryOptions {
-  final bool recursive;
+  final bool createParents;
 
-  const CreateDirectoryOptions({this.recursive = false});
+  const CreateDirectoryOptions({this.createParents = false});
 }
 
 final class MoveOptions {

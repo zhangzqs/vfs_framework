@@ -1,8 +1,365 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import '../abstract/index.dart';
 
+/// 一个基于非递归列举形成递归列举的函数
+Stream<FileStatus> recursiveList({
+  required Stream<FileStatus> Function(Path path, {ListOptions options})
+  nonRecursiveList, // 普通的非递归列举函数
+  required Path path,
+  required ListOptions options,
+}) async* {
+  if (!options.recursive) {
+    yield* nonRecursiveList(path, options: options);
+    return;
+  }
+  // 如果是递归列举，则使用队列来处理
+  final queue = <Path>[path];
+  final seen = <Path>{};
+
+  while (queue.isNotEmpty) {
+    final currentPath = queue.removeLast();
+    if (seen.contains(currentPath)) continue;
+    seen.add(currentPath);
+
+    await for (final status in nonRecursiveList(
+      currentPath,
+      options: options,
+    )) {
+      yield status;
+      if (status.isDirectory) {
+        queue.add(status.path!);
+      }
+    }
+  }
+}
+
+Future<void> recursiveCreateDirectory({
+  required Future<void> Function(Path path, {CreateDirectoryOptions options})
+  nonRecursiveCreateDirectory,
+  required Path path,
+  required CreateDirectoryOptions options,
+}) async {
+  if (!options.createParents) {
+    await nonRecursiveCreateDirectory(path, options: options);
+    return;
+  }
+  // 递归逐级依次创建目录
+  var dirs = [];
+  var currentPath = path;
+  while (!currentPath.isRoot) {
+    dirs.add(currentPath);
+    currentPath = currentPath.parent!;
+  }
+  // 反转顺序，从根目录开始创建
+  for (final dir in dirs.reversed) {
+    try {
+      await nonRecursiveCreateDirectory(dir, options: options);
+    } on FileSystemException catch (e) {
+      if (e.code != FileSystemErrorCode.alreadyExists) {
+        rethrow; // 如果不是因为目录已存在，则抛出异常
+      }
+    }
+  }
+}
+
+Future<void> recursiveDelete({
+  required Future<void> Function(Path path, {DeleteOptions options})
+  nonRecursiveDelete, // 普通的非递归删除函数
+  required Stream<FileStatus> Function(Path path, {ListOptions options})
+  nonRecursiveList, // 普通的非递归列举函数
+  required Path path,
+  required DeleteOptions options,
+}) async {
+  if (!options.recursive) {
+    await nonRecursiveDelete(path, options: options);
+    return;
+  }
+  // 递归删除目录
+  final queue = <Path>[path];
+  final seen = <Path>{};
+
+  while (queue.isNotEmpty) {
+    final currentPath = queue.removeLast();
+    if (seen.contains(currentPath)) continue;
+    seen.add(currentPath);
+
+    await for (final status in nonRecursiveList(
+      currentPath,
+      options: ListOptions(recursive: true),
+    )) {
+      if (status.isDirectory) {
+        queue.add(status.path!);
+      } else {
+        await nonRecursiveDelete(status.path!, options: options);
+      }
+    }
+    await nonRecursiveDelete(currentPath, options: options);
+  }
+}
+
+Future<void> recursiveCopy({
+  required Path source,
+  required Path destination,
+  required CopyOptions options,
+  required Future<void> Function(
+    Path source,
+    Path destination, {
+    CopyOptions options,
+  })
+  nonRecursiveCopyFile,
+  required Stream<FileStatus> Function(Path path, {ListOptions options})
+  nonRecursiveList,
+  required Future<void> Function(Path path, {CreateDirectoryOptions options})
+  recursiveCreateDirectory,
+}) async {
+  // 检查源是否存在
+  if (await nonRecursiveList(source, options: ListOptions()).isEmpty) {
+    throw FileSystemException.notFound(source);
+  }
+
+  // 检查目标是否已存在
+  if (!(await nonRecursiveList(destination, options: ListOptions()).isEmpty)) {
+    if (!options.overwrite) {
+      throw FileSystemException.alreadyExists(destination);
+    }
+  } else {
+    // 如果目标目录不存在，则创建它
+    await recursiveCreateDirectory(
+      destination.parent!,
+      options: CreateDirectoryOptions(createParents: true),
+    );
+  }
+
+  // 开始递归复制
+  final queue = <Path>[source];
+  final seen = <Path>{};
+
+  while (queue.isNotEmpty) {
+    final currentSource = queue.removeLast();
+    if (seen.contains(currentSource)) continue;
+    seen.add(currentSource);
+
+    await for (final status in nonRecursiveList(
+      currentSource,
+      options: ListOptions(recursive: true),
+    )) {
+      if (status.isDirectory) {
+        final newDest = destination.join(status.path!.filename!);
+        await recursiveCreateDirectory(
+          newDest,
+          options: CreateDirectoryOptions(createParents: true),
+        );
+        queue.add(status.path!);
+      } else {
+        final newDest = destination.join(status.path!.filename!);
+        await nonRecursiveCopyFile(status.path!, newDest, options: options);
+      }
+    }
+  }
+}
+
+Future<void> copyFileByReadAndWrite(
+  Path source,
+  Path destination, {
+  required Future<StreamSink<List<int>>> Function(
+    Path path, {
+    WriteOptions options,
+  })
+  openWrite,
+  required Stream<List<int>> Function(Path path, {ReadOptions options})
+  openRead,
+}) async {
+  final readStream = openRead(source);
+  final writeSink = await openWrite(
+    destination,
+    options: WriteOptions(overwrite: true),
+  );
+  await for (final chunk in readStream) {
+    writeSink.add(chunk);
+  }
+  await writeSink.close();
+}
+
 mixin FileSystemHelper on IFileSystem {
+  /// 基于非递归list实现支持递归的list
+  Stream<FileStatus> listImplByNonRecursive({
+    required Stream<FileStatus> Function(Path path, {ListOptions options})
+    nonRecursiveList,
+    required Path path,
+    required ListOptions options,
+  }) async* {
+    // 检查路径是否存在
+    final statRes = await stat(path);
+    if (statRes == null) {
+      throw FileSystemException.notFound(path);
+    }
+    if (!statRes.isDirectory) {
+      throw FileSystemException.notADirectory(path);
+    }
+    yield* recursiveList(
+      nonRecursiveList: nonRecursiveList,
+      path: path,
+      options: options,
+    );
+  }
+
+  /// 基于非递归createDirectory实现支持递归的createDirectory
+  Future<void> createDirectoryImplByNonRecursive({
+    required Future<void> Function(Path path, {CreateDirectoryOptions options})
+    nonRecursiveCreateDirectory,
+    required Path path,
+    required CreateDirectoryOptions options,
+  }) async {
+    // 检查路径是否存在
+    final statRes = await stat(path);
+    if (statRes == null) {
+      await recursiveCreateDirectory(
+        nonRecursiveCreateDirectory: nonRecursiveCreateDirectory,
+        path: path,
+        options: options,
+      );
+    } else {
+      if (statRes.isDirectory) {
+        // 如果目录已存在且是目录，则不需要创建
+        if (!options.createParents) {
+          throw FileSystemException.alreadyExists(path);
+        }
+      } else {
+        // 如果路径已存在但不是目录，则抛出异常
+        throw FileSystemException.alreadyExists(path);
+      }
+    }
+  }
+
+  Future<void> deleteImplByNonRecursive({
+    required Future<void> Function(Path path, {DeleteOptions options})
+    nonRecursiveDelete,
+    required Stream<FileStatus> Function(Path path, {ListOptions options})
+    nonRecursiveList,
+    required Path path,
+    required DeleteOptions options,
+  }) async {
+    final statRes = await stat(path);
+    if (statRes == null) {
+      // 如果目标路径找不到则报错
+      throw FileSystemException.notFound(path);
+    } else {
+      if (statRes.isDirectory) {
+        // 目标是目录
+        final emptyDir = await list(path).isEmpty;
+        if (emptyDir) {
+          // 空目录可以直接删除
+          await nonRecursiveDelete(path, options: options);
+        } else {
+          if (!options.recursive) {
+            throw FileSystemException.notEmptyDirectory(path);
+          } else {
+            // 递归删除目录
+            await recursiveDelete(
+              nonRecursiveDelete: nonRecursiveDelete,
+              nonRecursiveList: nonRecursiveList,
+              path: path,
+              options: options,
+            );
+          }
+        }
+      } else {
+        // 目标是文件，直接删除
+        await nonRecursiveDelete(path, options: options);
+      }
+    }
+  }
+
+  Future<void> copyImplByNonRecursive({
+    required Path source,
+    required Path destination,
+    required CopyOptions options,
+    required Future<void> Function(
+      Path source,
+      Path destination, {
+      CopyOptions options,
+    })
+    nonRecursiveCopyFile,
+    required Stream<FileStatus> Function(Path path, {ListOptions options})
+    nonRecursiveList,
+    required Future<void> Function(Path path, {CreateDirectoryOptions options})
+    nonRecursiveCreateDirectory,
+  }) async {
+    // 检查源是否存在
+    final srcStat = await stat(source);
+    if (srcStat == null) {
+      throw FileSystemException.notFound(source);
+    }
+    // 检查目标是否已存在
+    final destStat = await stat(destination);
+    if (destStat == null) {
+      if (srcStat.isDirectory) {
+        // 源是目录，目标不存在
+        if (!options.recursive) {
+          // 如果没有递归选项，则报错
+          throw FileSystemException.recursiveNotSpecified(destination);
+        }
+        // 递归复制目录
+        await recursiveCopy(
+          source: source,
+          destination: destination,
+          options: options,
+          nonRecursiveCopyFile: nonRecursiveCopyFile,
+          nonRecursiveList: nonRecursiveList,
+          recursiveCreateDirectory: createDirectory,
+        );
+      } else {
+        // 源是文件，目标不存在
+        // 正常的文件复制到目标所在的文件夹，如果目标所在的文件夹不存在，则报错NotFound
+        final destDir = destination.parent;
+        if (destDir != null && !(await exists(destDir))) {
+          throw FileSystemException.notFound(destDir);
+        }
+        // 如果目标目录存在，则复制到目标目录上
+        await nonRecursiveCopyFile(source, destination, options: options);
+      }
+    } else {
+      if (srcStat.isDirectory) {
+        if (destStat.isDirectory) {
+          // 源和目标都是目录，且目标已存在
+          if (!options.recursive) {
+            // 如果没有递归选项，则报错
+            throw FileSystemException.recursiveNotSpecified(destination);
+          }
+          // 递归复制目录
+          await recursiveCopy(
+            source: source,
+            destination: destination,
+            options: options,
+            nonRecursiveCopyFile: nonRecursiveCopyFile,
+            nonRecursiveList: nonRecursiveList,
+            recursiveCreateDirectory: createDirectory,
+          );
+        } else {
+          // 源是目录，目标是文件，且目标已存在
+          // 预期需要报错不能覆盖，无论怎样参数都报错alreadyExists
+          throw FileSystemException.alreadyExists(destination);
+        }
+      } else {
+        if (destStat.isDirectory) {
+          // 源是文件，目标是目录，且目标已存在
+          // 将文件复制到目标目录下
+          final destPath = destination.join(source.filename!);
+          await nonRecursiveCopyFile(source, destPath, options: options);
+        } else {
+          // 源和目标都是文件，且目标已存在
+          if (!options.overwrite) {
+            throw FileSystemException.alreadyExists(destination);
+          }
+          // 如果允许覆盖，则直接复制
+          await nonRecursiveCopyFile(source, destination, options: options);
+        }
+      }
+    }
+  }
+
   /// 检查是否存在
   @override
   Future<bool> exists(

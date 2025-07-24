@@ -6,10 +6,11 @@ enum FileSystemErrorCode {
   notAFile, // 目标不是文件
   notADirectory, // 目标不是目录
   unsupportedEntity, // 不支持的实体操作类型
-  ioError, // 其他IO 错误
+  ioError, // 其他 IO 错误
   permissionDenied, // 权限被拒绝
   alreadyExists, // 目标实体已存在
   notEmptyDirectory, // 目录不为空
+  recursiveNotSpecified, // 递归操作未指定
 }
 
 /// 统一文件系统异常
@@ -17,11 +18,13 @@ class FileSystemException implements Exception {
   final FileSystemErrorCode code;
   final String message;
   final Path? path;
+  final Path? otherPath;
 
   const FileSystemException({
     required this.code,
     required this.message,
     this.path,
+    this.otherPath,
   });
 
   // 快捷构造函数
@@ -54,18 +57,24 @@ class FileSystemException implements Exception {
         message: 'Unsupported entity type',
         path: path,
       );
-  factory FileSystemException.alreadyExists(Path path) => FileSystemException(
-    code: FileSystemErrorCode.alreadyExists,
-    message: 'Entity already exists',
-    path: path,
-  );
+  factory FileSystemException.alreadyExists(Path path, {String? message}) =>
+      FileSystemException(
+        code: FileSystemErrorCode.alreadyExists,
+        message: message ?? 'Entity already exists',
+        path: path,
+      );
   factory FileSystemException.notEmptyDirectory(Path path) =>
       FileSystemException(
         code: FileSystemErrorCode.notEmptyDirectory,
         message: 'Directory is not empty',
         path: path,
       );
-
+  factory FileSystemException.recursiveNotSpecified(Path path) =>
+      FileSystemException(
+        code: FileSystemErrorCode.recursiveNotSpecified,
+        message: 'Recursive option not specified, omitting directory $path',
+        path: path,
+      );
   @override
   String toString() => 'FileSystemException($code, $path): $message';
 }

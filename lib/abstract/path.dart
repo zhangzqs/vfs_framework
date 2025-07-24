@@ -36,11 +36,19 @@ final class Path extends Equatable {
     return segments.last;
   }
 
+  /// 拼接路径
+  Path join(String segment) {
+    if (segment.isEmpty) return this;
+    return Path([...segments, segment]);
+  }
+
   /// 获取路径的父目录
   Path? get parent {
     if (segments.isEmpty) return null;
     return Path(segments.sublist(0, segments.length - 1));
   }
+
+  bool get isRoot => segments.isEmpty;
 
   @override
   String toString() {

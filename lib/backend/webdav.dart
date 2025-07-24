@@ -26,7 +26,7 @@ class WebDavFileSystem extends IFileSystem with FileSystemHelper {
     Path path, {
     CreateDirectoryOptions options = const CreateDirectoryOptions(),
   }) {
-    if (options.recursive) {
+    if (options.createParents) {
       return client.mkdirAll(path.toString());
     } else {
       return client.mkdir(path.toString());

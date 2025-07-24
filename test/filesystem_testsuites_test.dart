@@ -35,6 +35,16 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       expect(result!.isDirectory, true);
       expect(result.size, isNull);
     });
+
+    test("return directory status for root path", () async {
+      final fs = fsGetter();
+      final path = Path.fromString("/");
+      final result = await fs.stat(path);
+
+      expect(result, isNotNull);
+      expect(result!.isDirectory, true);
+      expect(result.size, isNull);
+    });
   });
 
   group("exists", () {
@@ -79,7 +89,7 @@ void testFilesystem(IFileSystem Function() fsGetter) {
         final path = Path.fromString("/test/nested/dir");
         await fs.createDirectory(
           path,
-          options: CreateDirectoryOptions(recursive: true),
+          options: CreateDirectoryOptions(createParents: true),
         );
         final exists = await fs.exists(path);
         expect(exists, isTrue);
@@ -178,7 +188,7 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       final dirPath = Path.fromString("/test/dir");
       await fs.createDirectory(
         dirPath,
-        options: CreateDirectoryOptions(recursive: true),
+        options: CreateDirectoryOptions(createParents: true),
       );
       final filePath = Path.fromString("/test/dir/file.txt");
       await fs.writeBytes(filePath, Uint8List.fromList([1, 2, 3, 4]));
@@ -218,7 +228,7 @@ void testFilesystem(IFileSystem Function() fsGetter) {
 
         await fs.createDirectory(
           dirPath,
-          options: CreateDirectoryOptions(recursive: true),
+          options: CreateDirectoryOptions(createParents: true),
         );
         await fs.writeBytes(filePath, Uint8List.fromList([1, 2, 3, 4]));
 
@@ -346,9 +356,48 @@ void testFilesystem(IFileSystem Function() fsGetter) {
         ),
       );
     });
+
+    test("lists files recursively", () async {
+      final fs = fsGetter();
+      final rootDir = Path.fromString("/root");
+      await fs.createDirectory(rootDir);
+
+      final subDir = Path.fromString("/root/sub");
+      await fs.createDirectory(subDir);
+
+      final file1 = Path.fromString("/root/file1.txt");
+      final file2 = Path.fromString("/root/sub/file2.txt");
+      await fs.writeBytes(file1, Uint8List.fromList([1, 2, 3]));
+      await fs.writeBytes(file2, Uint8List.fromList([4, 5, 6]));
+
+      final files = await fs
+          .list(rootDir, options: ListOptions(recursive: true))
+          .toList();
+
+      expect(files.length, equals(3));
+      expect(files.map((f) => f.path), containsAll([file1, file2, subDir]));
+      expect(files.map((f) => f.path), equals([file1, subDir, file2]));
+    });
   });
 
   group("copy", () {
+    test("copy src not found", () async {
+      final fs = fsGetter();
+      final sourcePath = Path.fromString("/non/existent/file.txt");
+      final destPath = Path.fromString("/dest/file.txt");
+
+      expect(
+        () => fs.copy(sourcePath, destPath),
+        throwsA(
+          isA<FileSystemException>().having(
+            (e) => e.code,
+            'code',
+            FileSystemErrorCode.notFound,
+          ),
+        ),
+      );
+    });
+
     test("copies file successfully", () async {
       final fs = fsGetter();
       final sourcePath = Path.fromString("/source.txt");
@@ -401,15 +450,17 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       final sourceDir = Path.fromString("/source_dir");
       final destDir = Path.fromString("/dest_dir");
       await fs.createDirectory(sourceDir);
+      await fs.createDirectory(destDir);
       final file1 = Path.fromString("/source_dir/file1.txt");
       final file2 = Path.fromString("/source_dir/file2.txt");
       await fs.writeBytes(file1, Uint8List.fromList([1, 2, 3]));
       await fs.writeBytes(file2, Uint8List.fromList([4, 5, 6]));
 
-      await fs.copy(sourceDir, destDir);
+      await fs.copy(sourceDir, destDir, options: CopyOptions(recursive: true));
       final copiedFile1 = Path.fromString("/dest_dir/file1.txt");
       final copiedFile2 = Path.fromString("/dest_dir/file2.txt");
 
+      // 递归列举所有
       expect(await fs.exists(copiedFile1), isTrue);
       expect(await fs.exists(copiedFile2), isTrue);
       expect(
@@ -443,21 +494,21 @@ void main() {
     testFilesystem(() => fileSystem);
   });
 
-  group("test WebDavFileSystem", () {
-    late LocalFileSystem fileSystem;
-    late Directory tempDir;
+  // group("test WebDavFileSystem", () {
+  //   late LocalFileSystem fileSystem;
+  //   late Directory tempDir;
 
-    setUp(() async {
-      tempDir = await Directory.systemTemp.createTemp('filesystem_test_');
-      // 使用临时目录作为基础目录创建文件系统
-      fileSystem = LocalFileSystem(baseDir: tempDir.path);
-    });
-    tearDown(() async {
-      if (await tempDir.exists()) {
-        await tempDir.delete(recursive: true);
-      }
-    });
+  //   setUp(() async {
+  //     tempDir = await Directory.systemTemp.createTemp('filesystem_test_');
+  //     // 使用临时目录作为基础目录创建文件系统
+  //     fileSystem = LocalFileSystem(baseDir: tempDir.path);
+  //   });
+  //   tearDown(() async {
+  //     if (await tempDir.exists()) {
+  //       await tempDir.delete(recursive: true);
+  //     }
+  //   });
 
-    testFilesystem(() => fileSystem);
-  });
+  //   testFilesystem(() => fileSystem);
+  // });
 }
