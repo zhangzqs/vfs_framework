@@ -255,4 +255,22 @@ void main() {
 
     testFilesystem(() => fileSystem);
   });
+
+  group("test WebDavFileSystem", () {
+    late LocalFileSystem fileSystem;
+    late Directory tempDir;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('filesystem_test_');
+      // 使用临时目录作为基础目录创建文件系统
+      fileSystem = LocalFileSystem(baseDir: tempDir.path);
+    });
+    tearDown(() async {
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    testFilesystem(() => fileSystem);
+  });
 }
