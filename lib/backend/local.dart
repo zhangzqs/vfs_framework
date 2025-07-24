@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
-import 'package:vfs_framework/core/index.dart';
+import '../abstract/index.dart';
 import 'package:vfs_framework/helper/filesystem_helper.dart';
 
 class LocalFileSystem extends IFileSystem with FileSystemHelper {
@@ -118,10 +118,7 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
       }
     } else {
       if (srcStat.isDirectory) {
-        
-      } else {
-        
-      }
+      } else {}
     }
 
     try {

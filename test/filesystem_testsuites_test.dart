@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:test/test.dart';
-import 'package:vfs_framework/core/index.dart';
+import 'package:vfs_framework/abstract/index.dart';
 import 'package:vfs_framework/backend/local.dart';
 
 void testFilesystem(IFileSystem Function() fsGetter) {

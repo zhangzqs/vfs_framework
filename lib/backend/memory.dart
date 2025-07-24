@@ -3,7 +3,7 @@ import 'dart:typed_data';
 
 import 'package:vfs_framework/helper/filesystem_helper.dart';
 
-import '../core/index.dart';
+import '../abstract/index.dart';
 
 class MemoryFileSystem extends IFileSystem with FileSystemHelper {
   final _files = <String, Uint8List>{};

@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import '../core/index.dart';
+import '../abstract/index.dart';
 
 mixin FileSystemHelper on IFileSystem {
   /// 检查是否存在
