@@ -3,7 +3,7 @@ import 'dart:typed_data';
 
 import 'package:test/test.dart';
 import 'package:vfs_framework/core/index.dart';
-import 'package:vfs_framework/filesystem/local.dart';
+import 'package:vfs_framework/backend/local.dart';
 
 void testFilesystem(IFileSystem Function() fsGetter) {
   group("stat", () {
@@ -234,6 +234,193 @@ void testFilesystem(IFileSystem Function() fsGetter) {
         );
       },
     );
+  });
+
+  group("writeBytes and readAsBytes", () {
+    test("writes and reads file content", () async {
+      final fs = fsGetter();
+      final path = Path.fromString("/test_file.txt");
+      final data = Uint8List.fromList([1, 2, 3, 4, 5]);
+      await fs.writeBytes(path, data);
+      final readData = await fs.readAsBytes(path);
+      expect(readData, equals(data));
+    });
+
+    test("throws when writing existing file without overwrite", () async {
+      final fs = fsGetter();
+      final path = Path.fromString("/test_file.txt");
+      final data = Uint8List.fromList([1, 2, 3, 4, 5]);
+      await fs.writeBytes(path, data);
+
+      // 尝试写入同一文件，期望抛出异常
+      expect(
+        () => fs.writeBytes(path, data),
+        throwsA(
+          isA<FileSystemException>().having(
+            (e) => e.code,
+            'code',
+            FileSystemErrorCode.alreadyExists,
+          ),
+        ),
+      );
+
+      // 尝试写入同一文件，允许覆盖
+      final newData = Uint8List.fromList([6, 7, 8, 9, 10]);
+      await fs.writeBytes(
+        path,
+        newData,
+        options: WriteOptions(overwrite: true),
+      );
+      final readData = await fs.readAsBytes(path);
+      expect(readData, equals(newData));
+    });
+
+    test("appends to existing file when append is true", () async {
+      final fs = fsGetter();
+      final path = Path.fromString("/test_file.txt");
+      final data1 = Uint8List.fromList([1, 2, 3]);
+      final data2 = Uint8List.fromList([4, 5, 6]);
+
+      await fs.writeBytes(path, data1);
+      await fs.writeBytes(path, data2, options: WriteOptions(append: true));
+
+      final readData = await fs.readAsBytes(path);
+      expect(readData, equals(Uint8List.fromList([1, 2, 3, 4, 5, 6])));
+    });
+  });
+
+  group("list files", () {
+    test("lists files in directory", () async {
+      final fs = fsGetter();
+      final dirPath = Path.fromString("/test_dir");
+      await fs.createDirectory(dirPath);
+
+      final file1 = Path.fromString("/test_dir/file1.txt");
+      final file2 = Path.fromString("/test_dir/file2.txt");
+      await fs.writeBytes(file1, Uint8List.fromList([1, 2, 3]));
+      await fs.writeBytes(file2, Uint8List.fromList([4, 5, 6]));
+
+      final files = await fs.list(dirPath).toList();
+      expect(files.length, equals(2));
+      expect(files.map((f) => f.path), containsAll([file1, file2]));
+    });
+
+    test("returns empty list for empty directory", () async {
+      final fs = fsGetter();
+      final dirPath = Path.fromString("/empty_dir");
+      await fs.createDirectory(dirPath);
+
+      final files = await fs.list(dirPath).toList();
+      expect(files, isEmpty);
+    });
+
+    test("throws when listing non-existent directory", () async {
+      final fs = fsGetter();
+      final path = Path.fromString("/non/existent/dir");
+
+      expect(
+        () => fs.list(path).toList(),
+        throwsA(
+          isA<FileSystemException>().having(
+            (e) => e.code,
+            'code',
+            FileSystemErrorCode.notFound,
+          ),
+        ),
+      );
+    });
+
+    test("throws when listing a file instead of directory", () async {
+      final fs = fsGetter();
+      final filePath = Path.fromString("/test_file.txt");
+      await fs.writeBytes(filePath, Uint8List.fromList([1, 2, 3]));
+
+      expect(
+        () => fs.list(filePath).toList(),
+        throwsA(
+          isA<FileSystemException>().having(
+            (e) => e.code,
+            'code',
+            FileSystemErrorCode.notADirectory,
+          ),
+        ),
+      );
+    });
+  });
+
+  group("copy", () {
+    test("copies file successfully", () async {
+      final fs = fsGetter();
+      final sourcePath = Path.fromString("/source.txt");
+      final destPath = Path.fromString("/dest.txt");
+      await fs.writeBytes(sourcePath, Uint8List.fromList([1, 2, 3, 4]));
+
+      await fs.copy(sourcePath, destPath);
+      final destData = await fs.readAsBytes(destPath);
+      expect(destData, equals(Uint8List.fromList([1, 2, 3, 4])));
+    });
+
+    test("throws when copying non-existent source", () async {
+      final fs = fsGetter();
+      final sourcePath = Path.fromString("/nonexistent.txt");
+      final destPath = Path.fromString("/dest.txt");
+
+      expect(
+        () => fs.copy(sourcePath, destPath),
+        throwsA(
+          isA<FileSystemException>().having(
+            (e) => e.code,
+            'code',
+            FileSystemErrorCode.notFound,
+          ),
+        ),
+      );
+    });
+
+    test("throws when copying to existing file without overwrite", () async {
+      final fs = fsGetter();
+      final sourcePath = Path.fromString("/source.txt");
+      final destPath = Path.fromString("/dest.txt");
+      await fs.writeBytes(sourcePath, Uint8List.fromList([1, 2, 3, 4]));
+      await fs.writeBytes(destPath, Uint8List.fromList([5, 6, 7, 8]));
+
+      expect(
+        () async => await fs.copy(sourcePath, destPath),
+        throwsA(
+          isA<FileSystemException>().having(
+            (e) => e.code,
+            'code',
+            FileSystemErrorCode.alreadyExists,
+          ),
+        ),
+      );
+    });
+
+    test("copies directory recursively", () async {
+      final fs = fsGetter();
+      final sourceDir = Path.fromString("/source_dir");
+      final destDir = Path.fromString("/dest_dir");
+      await fs.createDirectory(sourceDir);
+      final file1 = Path.fromString("/source_dir/file1.txt");
+      final file2 = Path.fromString("/source_dir/file2.txt");
+      await fs.writeBytes(file1, Uint8List.fromList([1, 2, 3]));
+      await fs.writeBytes(file2, Uint8List.fromList([4, 5, 6]));
+
+      await fs.copy(sourceDir, destDir);
+      final copiedFile1 = Path.fromString("/dest_dir/file1.txt");
+      final copiedFile2 = Path.fromString("/dest_dir/file2.txt");
+
+      expect(await fs.exists(copiedFile1), isTrue);
+      expect(await fs.exists(copiedFile2), isTrue);
+      expect(
+        await fs.readAsBytes(copiedFile1),
+        equals(Uint8List.fromList([1, 2, 3])),
+      );
+      expect(
+        await fs.readAsBytes(copiedFile2),
+        equals(Uint8List.fromList([4, 5, 6])),
+      );
+    });
   });
 }
 

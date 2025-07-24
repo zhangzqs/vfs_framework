@@ -35,47 +35,6 @@ void main() {
       }
     });
 
-    group('writeAll and readAll', () {
-      test('writes and reads file content', () async {
-        final path = createTestPath(tempDir.path, 'test.txt');
-        final content = Uint8List.fromList('Hello, World!'.codeUnits);
-
-        await fileSystem.writeBytes(path, content);
-        final readContent = await fileSystem.readAsBytes(path);
-
-        expect(readContent, equals(content));
-      });
-
-      test('overwrites existing file by default', () async {
-        final path = createTestPath(tempDir.path, 'test.txt');
-        final content1 = Uint8List.fromList('First'.codeUnits);
-        final content2 = Uint8List.fromList('Second'.codeUnits);
-
-        await fileSystem.writeBytes(path, content1);
-        await fileSystem.writeBytes(path, content2);
-        final readContent = await fileSystem.readAsBytes(path);
-
-        expect(readContent, equals(content2));
-      });
-
-      test('appends to existing file when append is true', () async {
-        final path = createTestPath(tempDir.path, 'test.txt');
-        final content1 = Uint8List.fromList('First'.codeUnits);
-        final content2 = Uint8List.fromList('Second'.codeUnits);
-
-        await fileSystem.writeBytes(path, content1);
-        await fileSystem.writeBytes(
-          path,
-          content2,
-          options: WriteOptions(append: true),
-        );
-        final readContent = await fileSystem.readAsBytes(path);
-
-        final expected = Uint8List.fromList('FirstSecond'.codeUnits);
-        expect(readContent, equals(expected));
-      });
-    });
-
     group('readRange', () {
       test('reads partial file content', () async {
         final path = createTestPath(tempDir.path, 'test.txt');
@@ -128,92 +87,7 @@ void main() {
       });
     });
 
-    group('list', () {
-      test('lists directory contents', () async {
-        final path = createTestPath(tempDir.path, 'testdir');
-        final dir = Directory(p.join(tempDir.path, 'testdir'));
-        await dir.create();
-
-        final file1 = File(p.join(dir.path, 'file1.txt'));
-        await file1.writeAsString('test1');
-
-        final file2 = File(p.join(dir.path, 'file2.txt'));
-        await file2.writeAsString('test2');
-
-        final subdir = Directory(p.join(dir.path, 'subdir'));
-        await subdir.create();
-
-        final items = await fileSystem.list(path).toList();
-
-        expect(items.length, 3);
-        expect(items.where((item) => !item.isDirectory).length, 2);
-        expect(items.where((item) => item.isDirectory).length, 1);
-      });
-
-      test('throws FileSystemException for non-existent directory', () async {
-        final path = createTestPath(tempDir.path, 'nonexistent');
-
-        expect(
-          () => fileSystem.list(path).toList(),
-          throwsA(
-            isA<FileSystemException>().having(
-              (e) => e.code,
-              'code',
-              FileSystemErrorCode.notFound,
-            ),
-          ),
-        );
-      });
-
-      test('throws FileSystemException for file (not directory)', () async {
-        final path = createTestPath(tempDir.path, 'test.txt');
-        final file = File(p.join(tempDir.path, 'test.txt'));
-        await file.writeAsString('test');
-
-        expect(
-          () => fileSystem.list(path).toList(),
-          throwsA(
-            isA<FileSystemException>().having(
-              (e) => e.code,
-              'code',
-              FileSystemErrorCode.notADirectory,
-            ),
-          ),
-        );
-      });
-    });
-
     group('copy', () {
-      test('copies file successfully', () async {
-        final sourcePath = createTestPath(tempDir.path, 'source.txt');
-        final destPath = createTestPath(tempDir.path, 'dest.txt');
-
-        final sourceFile = File(p.join(tempDir.path, 'source.txt'));
-        await sourceFile.writeAsString('test content');
-
-        await fileSystem.copy(sourcePath, destPath);
-
-        final destFile = File(p.join(tempDir.path, 'dest.txt'));
-        expect(await destFile.exists(), true);
-        expect(await destFile.readAsString(), 'test content');
-      });
-
-      test('throws FileSystemException for non-existent source', () async {
-        final sourcePath = createTestPath(tempDir.path, 'nonexistent.txt');
-        final destPath = createTestPath(tempDir.path, 'dest.txt');
-
-        expect(
-          () => fileSystem.copy(sourcePath, destPath),
-          throwsA(
-            isA<FileSystemException>().having(
-              (e) => e.code,
-              'code',
-              FileSystemErrorCode.notFound,
-            ),
-          ),
-        );
-      });
-
       test('throws UnimplementedError for directory copy', () async {
         final sourcePath = createTestPath(tempDir.path, 'sourcedir');
         final destPath = createTestPath(tempDir.path, 'destdir');

@@ -103,12 +103,28 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
     Path destination, {
     CopyOptions options = const CopyOptions(),
   }) async {
-    try {
-      // 检查源是否存在
-      if (!await exists(source)) {
-        throw FileSystemException.notFound(source);
+    // 检查源是否存在
+    final srcStat = await stat(source);
+    if (srcStat == null) {
+      throw FileSystemException.notFound(source);
+    }
+    // 检查目标是否已存在
+    final destStat = await stat(destination);
+    if (destStat == null) {
+      if (srcStat.isDirectory) {
+        // 源是目录，目标不存在
+      } else {
+        // 源是文件，目标不存在
       }
+    } else {
+      if (srcStat.isDirectory) {
+        
+      } else {
+        
+      }
+    }
 
+    try {
       final sourcePath = _toLocalPath(source);
       final destPath = _toLocalPath(destination);
 

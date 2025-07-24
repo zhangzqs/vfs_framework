@@ -8,7 +8,7 @@ final class WriteOptions {
   final bool overwrite;
   final bool append;
 
-  const WriteOptions({this.overwrite = true, this.append = false});
+  const WriteOptions({this.overwrite = false, this.append = false});
 }
 
 final class ReadOptions {
@@ -27,7 +27,9 @@ final class ListOptions {
 }
 
 final class CopyOptions {
-  const CopyOptions();
+  final bool overwrite;
+  final bool recursive;
+  const CopyOptions({this.overwrite = false, this.recursive = false});
 }
 
 final class DeleteOptions {
