@@ -234,13 +234,5 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
   Future<FileStatus?> stat(
     Path path, {
     StatOptions options = const StatOptions(),
-  }) {
-    // 寻找文件或目录
-    final entity = _getEntity(path);
-    if (entity == null) {
-      return Future.value(null);
-    }
-    // 返回状态
-    return Future.value(entity.status);
-  }
+  }) => Future.value(_getEntity(path)?.status);
 }

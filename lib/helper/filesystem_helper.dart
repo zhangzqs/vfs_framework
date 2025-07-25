@@ -29,7 +29,7 @@ Stream<FileStatus> recursiveList({
     )) {
       yield status;
       if (status.isDirectory) {
-        queue.add(status.path!);
+        queue.add(status.path);
       }
     }
   }
@@ -90,9 +90,9 @@ Future<void> recursiveDelete({
       options: ListOptions(recursive: true),
     )) {
       if (status.isDirectory) {
-        queue.add(status.path!);
+        queue.add(status.path);
       } else {
-        await nonRecursiveDelete(status.path!, options: options);
+        await nonRecursiveDelete(status.path, options: options);
       }
     }
     await nonRecursiveDelete(currentPath, options: options);
@@ -146,15 +146,15 @@ Future<void> recursiveCopy({
       options: ListOptions(recursive: true),
     )) {
       if (status.isDirectory) {
-        final newDest = destination.join(status.path!.filename!);
+        final newDest = destination.join(status.path.filename!);
         await recursiveCreateDirectory(
           newDest,
           options: CreateDirectoryOptions(createParents: true),
         );
-        queue.add(status.path!);
+        queue.add(status.path);
       } else {
-        final newDest = destination.join(status.path!.filename!);
-        await nonRecursiveCopyFile(status.path!, newDest, options: options);
+        final newDest = destination.join(status.path.filename!);
+        await nonRecursiveCopyFile(status.path, newDest, options: options);
       }
     }
   }
@@ -458,7 +458,14 @@ mixin FileSystemHelper on IFileSystem {
     Path destination, {
     MoveOptions options = const MoveOptions(),
   }) async {
-    await copy(source, destination);
-    await delete(source);
+    await copy(
+      source,
+      destination,
+      options: CopyOptions(
+        overwrite: options.overwrite,
+        recursive: options.recursive,
+      ),
+    );
+    await delete(source, options: DeleteOptions(recursive: options.recursive));
   }
 }

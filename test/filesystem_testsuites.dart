@@ -1,9 +1,7 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:test/test.dart';
 import 'package:vfs_framework/abstract/index.dart';
-import 'package:vfs_framework/backend/local.dart';
 
 void testFilesystem(IFileSystem Function() fsGetter) {
   group("stat", () {
@@ -472,6 +470,280 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       expect(
         await fs.readAsBytes(copiedFile2),
         equals(Uint8List.fromList([4, 5, 6])),
+      );
+    });
+
+    test("throws when copying directory without recursive", () async {
+      final fs = fsGetter();
+      final sourceDir = Path.fromString("/source_dir");
+      final destDir = Path.fromString("/dest_dir");
+      await fs.createDirectory(sourceDir);
+      await fs.createDirectory(destDir);
+      final file1 = Path.fromString("/source_dir/file1.txt");
+      await fs.writeBytes(file1, Uint8List.fromList([1, 2, 3]));
+
+      expect(
+        () => fs.copy(sourceDir, destDir),
+        throwsA(
+          isA<FileSystemException>().having(
+            (e) => e.code,
+            'code',
+            FileSystemErrorCode.recursiveNotSpecified,
+          ),
+        ),
+      );
+    });
+  });
+
+  group("openRead", () {
+    test("reads file content", () async {
+      final fs = fsGetter();
+      final path = Path.fromString("/test_file.txt");
+      final data = Uint8List.fromList([1, 2, 3, 4, 5]);
+      await fs.writeBytes(path, data);
+
+      final chunks = <List<int>>[];
+      await for (final chunk in fs.openRead(path)) {
+        chunks.add(chunk);
+      }
+
+      final result = Uint8List.fromList(chunks.expand((x) => x).toList());
+      expect(result, equals(data));
+    });
+
+    test("throws when reading non-existent file", () async {
+      final fs = fsGetter();
+      final path = Path.fromString("/non_existent.txt");
+
+      expect(
+        () => fs.openRead(path).toList(),
+        throwsA(
+          isA<FileSystemException>().having(
+            (e) => e.code,
+            'code',
+            FileSystemErrorCode.notFound,
+          ),
+        ),
+      );
+    });
+
+    test("throws when reading a directory", () async {
+      final fs = fsGetter();
+      final dirPath = Path.fromString("/test_dir");
+      await fs.createDirectory(dirPath);
+
+      expect(
+        () => fs.openRead(dirPath).toList(),
+        throwsA(
+          isA<FileSystemException>().having(
+            (e) => e.code,
+            'code',
+            FileSystemErrorCode.notAFile,
+          ),
+        ),
+      );
+    });
+
+    test("reads partial file content", () async {
+      final fs = fsGetter();
+      final path = Path.fromString("/test_file.txt");
+      final data = Uint8List.fromList('Hello, World!'.codeUnits);
+      await fs.writeBytes(path, data);
+
+      final chunks = <List<int>>[];
+      await for (final chunk in fs.openRead(
+        path,
+        options: ReadOptions(start: 0, end: 5),
+      )) {
+        chunks.add(chunk);
+      }
+
+      final result = Uint8List.fromList(chunks.expand((x) => x).toList());
+      expect(result, equals(Uint8List.fromList('Hello'.codeUnits)));
+    });
+  });
+
+  group("openWrite", () {
+    test('opens write stream successfully', () async {
+      final fs = fsGetter();
+      final path = Path.fromString("/test_file.txt");
+      final sink = await fs.openWrite(path);
+      sink.add('Hello, '.codeUnits);
+      sink.add('World!'.codeUnits);
+      await sink.close();
+      // 验证文件内容
+      final content = await fs.readAsBytes(path);
+      expect(content, equals(Uint8List.fromList('Hello, World!'.codeUnits)));
+    });
+
+    test('throws when writing to a directory', () async {
+      final fs = fsGetter();
+      final dirPath = Path.fromString("/test_dir");
+      await fs.createDirectory(dirPath);
+
+      expect(
+        () => fs.openWrite(dirPath),
+        throwsA(
+          isA<FileSystemException>().having(
+            (e) => e.code,
+            'code',
+            FileSystemErrorCode.notAFile,
+          ),
+        ),
+      );
+    });
+
+    test('throws when writing to non-existent parent directory', () async {
+      final fs = fsGetter();
+      final path = Path.fromString("/non_existent_dir/test_file.txt");
+
+      expect(
+        () => fs.openWrite(path),
+        throwsA(
+          isA<FileSystemException>().having(
+            (e) => e.code,
+            'code',
+            FileSystemErrorCode.notFound,
+          ),
+        ),
+      );
+    });
+
+    test('writes with append mode', () async {
+      final fs = fsGetter();
+      final path = Path.fromString("/test_file.txt");
+      final sink = await fs.openWrite(
+        path,
+        options: WriteOptions(mode: WriteMode.append),
+      );
+      sink.add('Hello, '.codeUnits);
+      await sink.close();
+      // 再次打开并追加内容
+      final appendSink = await fs.openWrite(
+        path,
+        options: WriteOptions(mode: WriteMode.append),
+      );
+      appendSink.add('World!'.codeUnits);
+      await appendSink.close();
+      // 验证文件内容
+      final content = await fs.readAsBytes(path);
+      expect(content, equals(Uint8List.fromList('Hello, World!'.codeUnits)));
+    });
+
+    test('writes with overwrite mode', () async {
+      final fs = fsGetter();
+      final path = Path.fromString("/test_file.txt");
+      final sink = await fs.openWrite(
+        path,
+        options: WriteOptions(mode: WriteMode.overwrite),
+      );
+      sink.add('Hello, '.codeUnits);
+      await sink.close();
+      // 再次打开并覆盖内容
+      final overwriteSink = await fs.openWrite(
+        path,
+        options: WriteOptions(mode: WriteMode.overwrite),
+      );
+      overwriteSink.add('World!'.codeUnits);
+      await overwriteSink.close();
+      // 验证文件内容
+      final content = await fs.readAsBytes(path);
+      expect(content, equals(Uint8List.fromList('World!'.codeUnits)));
+    });
+  });
+
+  group("move", () {
+    test("moves file successfully", () async {
+      final fs = fsGetter();
+      final sourcePath = Path.fromString("/source.txt");
+      final destPath = Path.fromString("/dest.txt");
+      await fs.writeBytes(sourcePath, Uint8List.fromList([1, 2, 3, 4]));
+
+      await fs.move(sourcePath, destPath);
+      expect(await fs.exists(sourcePath), isFalse);
+      expect(await fs.exists(destPath), isTrue);
+      final destData = await fs.readAsBytes(destPath);
+      expect(destData, equals(Uint8List.fromList([1, 2, 3, 4])));
+    });
+
+    test("throws when moving non-existent source", () async {
+      final fs = fsGetter();
+      final sourcePath = Path.fromString("/non_existent.txt");
+      final destPath = Path.fromString("/dest.txt");
+
+      expect(
+        () => fs.move(sourcePath, destPath),
+        throwsA(
+          isA<FileSystemException>().having(
+            (e) => e.code,
+            'code',
+            FileSystemErrorCode.notFound,
+          ),
+        ),
+      );
+    });
+
+    test("throws when moving to existing file without overwrite", () async {
+      final fs = fsGetter();
+      final sourcePath = Path.fromString("/source.txt");
+      final destPath = Path.fromString("/dest.txt");
+      await fs.writeBytes(sourcePath, Uint8List.fromList([1, 2, 3, 4]));
+      await fs.writeBytes(destPath, Uint8List.fromList([5, 6, 7, 8]));
+
+      expect(
+        () => fs.move(sourcePath, destPath),
+        throwsA(
+          isA<FileSystemException>().having(
+            (e) => e.code,
+            'code',
+            FileSystemErrorCode.alreadyExists,
+          ),
+        ),
+      );
+    });
+
+    test("moves directory recursively", () async {
+      final fs = fsGetter();
+      final sourceDir = Path.fromString("/source_dir");
+      final destDir = Path.fromString("/dest_dir");
+      await fs.createDirectory(sourceDir);
+      await fs.createDirectory(destDir);
+      final file1 = Path.fromString("/source_dir/file1.txt");
+      final file2 = Path.fromString("/source_dir/file2.txt");
+      await fs.writeBytes(file1, Uint8List.fromList([1, 2, 3]));
+      await fs.writeBytes(file2, Uint8List.fromList([4, 5, 6]));
+      await fs.move(sourceDir, destDir, options: MoveOptions(recursive: true));
+      final movedFile1 = Path.fromString("/dest_dir/file1.txt");
+      final movedFile2 = Path.fromString("/dest_dir/file2.txt");
+      expect(await fs.exists(movedFile1), isTrue);
+      expect(await fs.exists(movedFile2), isTrue);
+      expect(
+        await fs.readAsBytes(movedFile1),
+        equals(Uint8List.fromList([1, 2, 3])),
+      );
+      expect(
+        await fs.readAsBytes(movedFile2),
+        equals(Uint8List.fromList([4, 5, 6])),
+      );
+      expect(await fs.exists(sourceDir), isFalse);
+    });
+    test("throws when moving non-empty directory without recursive", () async {
+      final fs = fsGetter();
+      final sourceDir = Path.fromString("/source_dir");
+      final destDir = Path.fromString("/dest_dir");
+      await fs.createDirectory(sourceDir);
+      final file1 = Path.fromString("/source_dir/file1.txt");
+      await fs.writeBytes(file1, Uint8List.fromList([1, 2, 3]));
+
+      expect(
+        () => fs.move(sourceDir, destDir),
+        throwsA(
+          isA<FileSystemException>().having(
+            (e) => e.code,
+            'code',
+            FileSystemErrorCode.recursiveNotSpecified,
+          ),
+        ),
       );
     });
   });

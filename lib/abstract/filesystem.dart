@@ -54,7 +54,9 @@ final class CreateDirectoryOptions {
 }
 
 final class MoveOptions {
-  const MoveOptions();
+  final bool overwrite;
+  final bool recursive;
+  const MoveOptions({this.overwrite = false, this.recursive = false});
 }
 
 final class ExistsOptions {

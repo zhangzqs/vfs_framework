@@ -232,7 +232,7 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
     Path path, {
     ReadOptions options = const ReadOptions(),
   }) async* {
-    preOpenReadCheck(path, options: options);
+    await preOpenReadCheck(path, options: options);
     try {
       // 打开文件并读取内容
       await for (final chunk in File(
