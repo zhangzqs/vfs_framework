@@ -12,7 +12,7 @@ class _MemoryFileEntity {
   Uint8List? content;
   // 如果是目录则有子项
   Set<_MemoryFileEntity>? children;
-  _MemoryFileEntity(this.status, {this.content, this.children});
+  _MemoryFileEntity(this.status, {this.children});
 }
 
 class MemoryFileSystem extends IFileSystem with FileSystemHelper {
@@ -101,15 +101,21 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
       throw FileSystemException.notFound(path);
     }
     final parentEntity = _getEntity(parentDir);
-    if (parentEntity == null || !parentEntity.status.isDirectory) {
+    // 如果父目录不存在，报错
+    if (parentEntity == null) {
+      throw FileSystemException.notFound(parentDir);
+    }
+    // 如果父目录不是目录，报错
+    if (!parentEntity.status.isDirectory) {
       throw FileSystemException.notADirectory(parentDir);
     }
     // 直接创建
-    final newEntity = _MemoryFileEntity(
-      FileStatus(path: path, isDirectory: true),
-      children: {},
+    parentEntity.children!.add(
+      _MemoryFileEntity(
+        FileStatus(path: path, isDirectory: true),
+        children: {},
+      ),
     );
-    parentEntity.children!.add(newEntity);
   }
 
   @override
@@ -129,14 +135,17 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     Path path, {
     DeleteOptions options = const DeleteOptions(),
   }) async {
+    // 寻找文件或目录
     final entity = _getEntity(path);
     if (entity == null) {
       throw FileSystemException.notFound(path);
     }
-    if (entity.status.isDirectory && entity.children!.isNotEmpty) {
-      throw FileSystemException.notADirectory(path);
+    // 如果是目录，检查是否为空
+    if (entity.status.isDirectory &&
+        entity.children!.isNotEmpty &&
+        !options.recursive) {
+      throw FileSystemException.notEmptyDirectory(path);
     }
-
     // 从父目录中删除
     final parentPath = path.parent;
     if (parentPath == null) {
@@ -180,11 +189,25 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     if (parentEntity == null || !parentEntity.status.isDirectory) {
       throw FileSystemException.notADirectory(parentPath);
     }
+
+    // 查找是否已存在这个文件
+    final existingEntity = parentEntity.children
+        ?.where((e) => e.name == path.filename)
+        .firstOrNull;
+    parentEntity.children?.remove(existingEntity);
+
     // 创建或覆盖文件
     final newEntity = _MemoryFileEntity(
       FileStatus(path: path, isDirectory: false),
     );
     parentEntity.children!.add(newEntity); // 添加新文件
+
+    // 如果是覆盖或追加模式，处理内容
+    if (options.mode == WriteMode.append) {
+      if (existingEntity != null) {
+        newEntity.content = existingEntity.content; // 继承旧内容
+      }
+    }
     // 返回一个Sink来写入数据
     final controller = StreamController<List<int>>();
     controller.stream.listen(

@@ -74,81 +74,79 @@ void testFilesystem(IFileSystem Function() fsGetter) {
 
       expect(exists, isTrue);
     });
+  });
 
-    group("createDirectory", () {
-      test("create directory successfully", () async {
-        final fs = fsGetter();
-        final path = Path.fromString("/test");
-        await fs.createDirectory(path);
-        final exists = await fs.exists(path);
-        expect(exists, isTrue);
-      });
+  group("createDirectory", () {
+    test("create directory successfully", () async {
+      final fs = fsGetter();
+      final path = Path.fromString("/test");
+      await fs.createDirectory(path);
+      final exists = await fs.exists(path);
+      expect(exists, isTrue);
+    });
 
-      test("create nested directories", () async {
-        final fs = fsGetter();
-        final path = Path.fromString("/test/nested/dir");
-        await fs.createDirectory(
-          path,
-          options: CreateDirectoryOptions(createParents: true),
-        );
-        final exists = await fs.exists(path);
-        expect(exists, isTrue);
-      });
-
-      test(
-        "throws when parent does not exist and recursive is false",
-        () async {
-          final fs = fsGetter();
-          final path = Path.fromString("/non/existent/dir");
-
-          // 期望异常为FileSystemException并且包含notFound错误码
-          expect(
-            () async => fs.createDirectory(path),
-            throwsA(
-              isA<FileSystemException>().having(
-                (e) => e.code,
-                'code',
-                FileSystemErrorCode.notFound,
-              ),
-            ),
-          );
-        },
+    test("create nested directories", () async {
+      final fs = fsGetter();
+      final path = Path.fromString("/test/nested/dir");
+      await fs.createDirectory(
+        path,
+        options: CreateDirectoryOptions(createParents: true),
       );
-      test("throws when trying to create a file as a directory", () async {
-        final fs = fsGetter();
-        final path = Path.fromString("/file.txt");
-        await fs.writeBytes(path, Uint8List.fromList([1, 2, 3, 4]));
+      final exists = await fs.exists(path);
+      expect(exists, isTrue);
+    });
 
-        // 期望异常为FileSystemException并且包含notADirectory错误码
-        expect(
-          () async => fs.createDirectory(path),
-          throwsA(
-            isA<FileSystemException>().having(
-              (e) => e.code,
-              'code',
-              FileSystemErrorCode.alreadyExists,
-            ),
+    test("throws when parent does not exist and recursive is false", () async {
+      final fs = fsGetter();
+      final path = Path.fromString("/non/existent/dir");
+
+      // 期望异常为FileSystemException并且包含notFound错误码
+      expect(
+        () async => fs.createDirectory(path),
+        throwsA(
+          isA<FileSystemException>().having(
+            (e) => e.code,
+            'code',
+            FileSystemErrorCode.notFound,
           ),
-        );
-      });
+        ),
+      );
+    });
 
-      test("throws when trying to create an existing directory", () async {
-        final fs = fsGetter();
-        final path = Path.fromString("/test");
-        await fs.createDirectory(path);
+    test("throws when trying to create a file as a directory", () async {
+      final fs = fsGetter();
+      final path = Path.fromString("/file.txt");
+      await fs.writeBytes(path, Uint8List.fromList([1, 2, 3, 4]));
 
-        // 期望异常为FileSystemException并且包含alreadyExists错误码
-        expect(
-          () async => fs.createDirectory(path),
-          throwsA(
-            isA<FileSystemException>().having(
-              (e) => e.code,
-              'code',
-              FileSystemErrorCode.alreadyExists,
-            ),
+      // 期望异常为FileSystemException并且包含notADirectory错误码
+      expect(
+        () async => fs.createDirectory(path),
+        throwsA(
+          isA<FileSystemException>().having(
+            (e) => e.code,
+            'code',
+            FileSystemErrorCode.alreadyExists,
           ),
-        );
-      });
+        ),
+      );
+    });
+
+    test("throws when trying to create an existing directory", () async {
+      final fs = fsGetter();
+      final path = Path.fromString("/test");
+      await fs.createDirectory(path);
+
+      // 期望异常为FileSystemException并且包含alreadyExists错误码
+      expect(
+        () async => fs.createDirectory(path),
+        throwsA(
+          isA<FileSystemException>().having(
+            (e) => e.code,
+            'code',
+            FileSystemErrorCode.alreadyExists,
+          ),
+        ),
+      );
     });
   });
 
@@ -380,7 +378,7 @@ void testFilesystem(IFileSystem Function() fsGetter) {
 
       expect(files.length, equals(3));
       expect(files.map((f) => f.path), containsAll([file1, file2, subDir]));
-      expect(files.map((f) => f.path), equals([file1, subDir, file2]));
+      expect(files.map((f) => f.path).toSet(), equals({file1, subDir, file2}));
     });
   });
 

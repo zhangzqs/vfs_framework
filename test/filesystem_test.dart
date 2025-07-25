@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:vfs_framework/backend/index.dart';
-import 'package:vfs_framework/backend/local.dart';
 
 import 'filesystem_testsuites.dart';
 
@@ -26,8 +25,11 @@ void main() {
   });
 
   group("test MemoryFileSystem", () {
-    final fileSystem = MemoryFileSystem();
-
+    late MemoryFileSystem fileSystem;
+    setUp(() {
+      // 使用内存文件系统
+      fileSystem = MemoryFileSystem();
+    });
     testFilesystem(() => fileSystem);
   });
 }
