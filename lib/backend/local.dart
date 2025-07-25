@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import '../abstract/index.dart';
 import 'package:vfs_framework/helper/filesystem_helper.dart';
+import 'package:vfs_framework/helper/mime_type_helper.dart';
 
 class LocalFileSystem extends IFileSystem with FileSystemHelper {
   /// 本地文件系统的基础目录
@@ -49,6 +50,9 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
         path: path,
         size: stat.type == FileSystemEntityType.file ? stat.size : null,
         isDirectory: stat.type == FileSystemEntityType.directory,
+        mimeType: stat.type == FileSystemEntityType.file 
+            ? MimeTypeHelper.getMimeType(path.filename ?? '') 
+            : null,
       );
     } on FileSystemException {
       rethrow;
@@ -72,6 +76,9 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
           path: _toPath(entity.path),
           size: stat.type == FileSystemEntityType.file ? stat.size : null,
           isDirectory: stat.type == FileSystemEntityType.directory,
+          mimeType: stat.type == FileSystemEntityType.file 
+              ? MimeTypeHelper.getMimeType(p.basename(entity.path)) 
+              : null,
         );
       } on IOException {
         continue; // 跳过IO错误的文件

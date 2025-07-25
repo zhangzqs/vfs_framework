@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:vfs_framework/helper/filesystem_helper.dart';
+import 'package:vfs_framework/helper/mime_type_helper.dart';
 
 import '../abstract/index.dart';
 
@@ -198,7 +199,11 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
 
     // 创建或覆盖文件
     final newEntity = _MemoryFileEntity(
-      FileStatus(path: path, isDirectory: false),
+      FileStatus(
+        path: path, 
+        isDirectory: false,
+        mimeType: MimeTypeHelper.getMimeType(path.filename ?? ''),
+      ),
     );
     parentEntity.children!.add(newEntity); // 添加新文件
 
@@ -218,6 +223,7 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
           path: path,
           isDirectory: false,
           size: newEntity.content!.length,
+          mimeType: MimeTypeHelper.getMimeType(path.filename ?? ''),
         );
       },
       onDone: () {
