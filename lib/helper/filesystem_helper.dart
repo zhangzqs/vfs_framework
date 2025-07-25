@@ -174,7 +174,7 @@ Future<void> copyFileByReadAndWrite(
   final readStream = openRead(source);
   final writeSink = await openWrite(
     destination,
-    options: WriteOptions(overwrite: true),
+    options: WriteOptions(mode: WriteMode.overwrite),
   );
   await for (final chunk in readStream) {
     writeSink.add(chunk);
@@ -357,6 +357,62 @@ mixin FileSystemHelper on IFileSystem {
           await nonRecursiveCopyFile(source, destination, options: options);
         }
       }
+    }
+  }
+
+  Future<void> preOpenWriteCheck(
+    Path path, {
+    WriteOptions options = const WriteOptions(),
+  }) async {
+    // 检查文件是否已存在且不允许覆盖
+    final statRes = await stat(path);
+    if (statRes == null) {
+      // 确保父目录存在
+      final parentDir = path.parent;
+      if (parentDir == null) {
+        throw FileSystemException.notFound(path);
+      }
+      final parentStat = await stat(parentDir);
+      if (parentStat == null) {
+        throw FileSystemException.notFound(parentDir);
+      }
+      if (!parentStat.isDirectory) {
+        throw FileSystemException.notADirectory(parentDir);
+      }
+      // 可以写文件
+    } else {
+      // 文件或目录已存在
+      if (statRes.isDirectory) {
+        throw FileSystemException.notAFile(path);
+      } else {
+        // 如果文件已存在
+        switch (options.mode) {
+          case WriteMode.write:
+            // 不允许覆盖，则抛出异常
+            throw FileSystemException.alreadyExists(path);
+          case WriteMode.overwrite:
+            // 可以覆盖写了
+            break;
+          case WriteMode.append:
+            // 可以追加写了
+            break;
+        }
+      }
+    }
+  }
+
+  Future<void> preOpenReadCheck(
+    Path path, {
+    ReadOptions options = const ReadOptions(),
+  }) async {
+    // 检查文件是否存在
+    final statRes = await stat(path);
+    if (statRes == null) {
+      throw FileSystemException.notFound(path);
+    }
+    // 如果是目录，则抛出异常
+    if (statRes.isDirectory) {
+      throw FileSystemException.notAFile(path);
     }
   }
 

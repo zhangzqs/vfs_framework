@@ -85,7 +85,7 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
     ListOptions options = const ListOptions(),
   }) {
     // 遍历目录
-    return super.listImplByNonRecursive(
+    return listImplByNonRecursive(
       nonRecursiveList: nonRecursiveList,
       path: path,
       options: options,
@@ -138,8 +138,6 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
 
       // 创建目录
       await directory.create();
-    } on FileSystemException {
-      rethrow;
     } on IOException catch (e) {
       throw FileSystemException(
         code: FileSystemErrorCode.ioError,
@@ -211,26 +209,15 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
     Path path, {
     WriteOptions options = const WriteOptions(),
   }) async {
+    await preOpenWriteCheck(path, options: options);
     try {
-      final localPath = _toLocalPath(path);
-      final file = File(localPath);
-
-      // 检查文件是否已存在且不允许覆盖
-      if (await file.exists() && !options.overwrite && !options.append) {
-        throw FileSystemException.alreadyExists(path);
-      }
-
-      // 确保父目录存在
-      final parentDir = file.parent;
-      if (!await parentDir.exists()) {
-        await parentDir.create(recursive: true);
-      }
-
-      return file.openWrite(
-        mode: options.append ? FileMode.append : FileMode.write,
+      return File(_toLocalPath(path)).openWrite(
+        mode: {
+          WriteMode.write: FileMode.write,
+          WriteMode.overwrite: FileMode.writeOnly,
+          WriteMode.append: FileMode.append,
+        }[options.mode]!,
       );
-    } on FileSystemException {
-      rethrow;
     } on IOException catch (e) {
       throw FileSystemException(
         code: FileSystemErrorCode.ioError,
@@ -245,27 +232,14 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
     Path path, {
     ReadOptions options = const ReadOptions(),
   }) async* {
+    preOpenReadCheck(path, options: options);
     try {
-      final localPath = _toLocalPath(path);
-
-      // 检查路径是否存在（不区分文件或目录）
-      if (!await FileSystemEntity.isFile(localPath) &&
-          !await FileSystemEntity.isDirectory(localPath)) {
-        throw FileSystemException.notFound(path);
-      }
-
-      // 检查是否是文件（不是目录）
-      if (!await FileSystemEntity.isFile(localPath)) {
-        throw FileSystemException.notAFile(path);
-      }
-
-      final file = File(localPath);
       // 打开文件并读取内容
-      await for (final chunk in file.openRead(options.start, options.end)) {
+      await for (final chunk in File(
+        _toLocalPath(path),
+      ).openRead(options.start, options.end)) {
         yield chunk; // 逐块返回文件内容
       }
-    } on FileSystemException {
-      rethrow;
     } on IOException catch (e) {
       throw FileSystemException(
         code: FileSystemErrorCode.ioError,

@@ -4,11 +4,19 @@ import 'dart:typed_data';
 import 'path.dart';
 import 'status.dart';
 
-final class WriteOptions {
-  final bool overwrite;
-  final bool append;
+enum WriteMode {
+  // 正常写，如果文件不存在则创建，存在则报错
+  write,
+  // 覆盖写，如果文件不存在则创建，存在则覆盖
+  overwrite,
+  // 追加写，如果文件不存在则创建，存在则在末尾追加内容
+  append,
+}
 
-  const WriteOptions({this.overwrite = false, this.append = false});
+final class WriteOptions {
+  final WriteMode mode;
+
+  const WriteOptions({this.mode = WriteMode.write});
 }
 
 final class ReadOptions {

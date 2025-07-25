@@ -16,7 +16,7 @@ void testFilesystem(IFileSystem Function() fsGetter) {
     test('returns file status for existing file', () async {
       final fs = fsGetter();
 
-      final path = Path.fromString("/test/file.txt");
+      final path = Path.fromString("/file.txt");
       await fs.writeBytes(path, Uint8List.fromList([1, 2, 3, 4]));
       final result = await fs.stat(path);
 
@@ -58,7 +58,7 @@ void testFilesystem(IFileSystem Function() fsGetter) {
     test('returns true for existing file', () async {
       final fs = fsGetter();
 
-      final path = Path.fromString("/test/file.txt");
+      final path = Path.fromString("/file.txt");
       await fs.writeBytes(path, Uint8List.fromList([1, 2, 3, 4]));
       final exists = await fs.exists(path);
 
@@ -116,7 +116,7 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       );
       test("throws when trying to create a file as a directory", () async {
         final fs = fsGetter();
-        final path = Path.fromString("/test/file.txt");
+        final path = Path.fromString("/file.txt");
         await fs.writeBytes(path, Uint8List.fromList([1, 2, 3, 4]));
 
         // 期望异常为FileSystemException并且包含notADirectory错误码
@@ -155,7 +155,7 @@ void testFilesystem(IFileSystem Function() fsGetter) {
   group("delete", () {
     test("deletes file successfully", () async {
       final fs = fsGetter();
-      final path = Path.fromString("/test/file.txt");
+      final path = Path.fromString("/file.txt");
       await fs.writeBytes(path, Uint8List.fromList([1, 2, 3, 4]));
       expect(await fs.exists(path), isTrue);
 
@@ -279,7 +279,7 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       await fs.writeBytes(
         path,
         newData,
-        options: WriteOptions(overwrite: true),
+        options: WriteOptions(mode: WriteMode.overwrite),
       );
       final readData = await fs.readAsBytes(path);
       expect(readData, equals(newData));
@@ -292,7 +292,11 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       final data2 = Uint8List.fromList([4, 5, 6]);
 
       await fs.writeBytes(path, data1);
-      await fs.writeBytes(path, data2, options: WriteOptions(append: true));
+      await fs.writeBytes(
+        path,
+        data2,
+        options: WriteOptions(mode: WriteMode.append),
+      );
 
       final readData = await fs.readAsBytes(path);
       expect(readData, equals(Uint8List.fromList([1, 2, 3, 4, 5, 6])));
@@ -473,42 +477,4 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       );
     });
   });
-}
-
-void main() {
-  group("test LocalFileSystem", () {
-    late LocalFileSystem fileSystem;
-    late Directory tempDir;
-
-    setUp(() async {
-      tempDir = await Directory.systemTemp.createTemp('filesystem_test_');
-      // 使用临时目录作为基础目录创建文件系统
-      fileSystem = LocalFileSystem(baseDir: tempDir.path);
-    });
-    tearDown(() async {
-      if (await tempDir.exists()) {
-        await tempDir.delete(recursive: true);
-      }
-    });
-
-    testFilesystem(() => fileSystem);
-  });
-
-  // group("test WebDavFileSystem", () {
-  //   late LocalFileSystem fileSystem;
-  //   late Directory tempDir;
-
-  //   setUp(() async {
-  //     tempDir = await Directory.systemTemp.createTemp('filesystem_test_');
-  //     // 使用临时目录作为基础目录创建文件系统
-  //     fileSystem = LocalFileSystem(baseDir: tempDir.path);
-  //   });
-  //   tearDown(() async {
-  //     if (await tempDir.exists()) {
-  //       await tempDir.delete(recursive: true);
-  //     }
-  //   });
-
-  //   testFilesystem(() => fileSystem);
-  // });
 }

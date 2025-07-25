@@ -48,11 +48,11 @@ class WebDavFileSystem extends IFileSystem with FileSystemHelper {
   }) async* {
     final list = await client.readDir(path.toString());
     for (final item in list) {
-      yield FileStatus(
-        isDirectory: item.isDir ?? false,
-        path: item.path != null ? Path.fromString(item.path!) : null,
-        size: item.size,
-      );
+      // yield FileStatus(
+      //   isDirectory: item.isDir ?? false,
+      //   path: item.path != null ? Path.fromString(item.path!) : null,
+      //   size: item.size,
+      // );
     }
   }
 
