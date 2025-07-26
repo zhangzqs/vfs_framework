@@ -148,7 +148,9 @@ class HttpServer {
 
       final headers = <String, String>{
         'content-type': fileStatus.mimeType ?? 'application/octet-stream',
-        'content-disposition': 'inline; filename="${fileStatus.path.filename}"',
+        'content-disposition': _buildContentDisposition(
+          fileStatus.path.filename,
+        ),
       };
 
       if (fileStatus.size != null) {
@@ -261,6 +263,25 @@ class HttpServer {
       return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     }
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+  }
+
+  /// 构建符合HTTP标准的Content-Disposition头部
+  String _buildContentDisposition(String? filename) {
+    if (filename == null || filename.isEmpty) {
+      return 'inline';
+    }
+
+    // 检查文件名是否只包含ASCII字符
+    bool isAsciiOnly = filename.codeUnits.every((unit) => unit < 128);
+
+    if (isAsciiOnly) {
+      // 如果是纯ASCII字符，使用简单格式
+      return 'inline; filename="$filename"';
+    } else {
+      // 如果包含非ASCII字符，使用RFC 5987标准的编码格式
+      final encodedFilename = Uri.encodeComponent(filename);
+      return 'inline; filename*=UTF-8\'\'$encodedFilename';
+    }
   }
 
   /// 停止服务器
