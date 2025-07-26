@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:vfs_framework/src/helper/filesystem_helper.dart';
-import 'package:vfs_framework/src/helper/mime_type_helper.dart';
-
+import '../helper/filesystem_helper.dart';
+import '../helper/mime_type_helper.dart';
 import '../abstract/index.dart';
 
 class _MemoryFileEntity {
@@ -200,7 +199,7 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     // 创建或覆盖文件
     final newEntity = _MemoryFileEntity(
       FileStatus(
-        path: path, 
+        path: path,
         isDirectory: false,
         mimeType: MimeTypeHelper.getMimeType(path.filename ?? ''),
       ),

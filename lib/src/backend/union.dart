@@ -1,8 +1,7 @@
 import 'dart:async';
-
 import 'dart:typed_data';
 
-import 'package:vfs_framework/vfs_framework.dart';
+import '../abstract/index.dart';
 
 class UnionFileSystemItem {
   final IFileSystem fileSystem;

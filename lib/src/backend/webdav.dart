@@ -89,9 +89,6 @@ class WebDavFileSystem extends IFileSystem with FileSystemHelper {
   }) {
     // 使用list实现stat
     return list(path).first.then((status) {
-      if (status.path == null) {
-        return null;
-      }
       return status;
     });
   }

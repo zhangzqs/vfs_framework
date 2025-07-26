@@ -1,12 +1,10 @@
 import 'dart:async';
-
 import 'dart:typed_data';
 
-import 'package:vfs_framework/vfs_framework.dart';
-import 'package:vfs_framework/src/helper/filesystem_helper.dart';
+import '../abstract/index.dart';
 
 /// 用于把另一个文件系统里的某个子文件夹作为一个新文件系统
-class AliasFileSystem extends IFileSystem with FileSystemHelper {
+class AliasFileSystem extends IFileSystem {
   final IFileSystem fileSystem;
   final Path subDirectory;
 
@@ -27,19 +25,19 @@ class AliasFileSystem extends IFileSystem with FileSystemHelper {
     if (subDirectory.isRoot) {
       return realPath;
     }
-    
+
     // 检查路径是否在子目录下
     if (realPath.segments.length < subDirectory.segments.length) {
       throw ArgumentError('Real path is not under subdirectory');
     }
-    
+
     // 验证路径前缀匹配
     for (int i = 0; i < subDirectory.segments.length; i++) {
       if (realPath.segments[i] != subDirectory.segments[i]) {
         throw ArgumentError('Real path is not under subdirectory');
       }
     }
-    
+
     // 移除子目录前缀
     return Path(realPath.segments.sublist(subDirectory.segments.length));
   }
@@ -88,11 +86,11 @@ class AliasFileSystem extends IFileSystem with FileSystemHelper {
     ListOptions options = const ListOptions(),
   }) async* {
     final realPath = _convertToRealPath(path);
-    
+
     await for (final status in fileSystem.list(realPath, options: options)) {
       // 将真实路径转换为alias路径
       final aliasPath = _convertFromRealPath(status.path);
-      
+
       yield FileStatus(
         path: aliasPath,
         isDirectory: status.isDirectory,
@@ -147,11 +145,11 @@ class AliasFileSystem extends IFileSystem with FileSystemHelper {
   }) async {
     final realPath = _convertToRealPath(path);
     final realStatus = await fileSystem.stat(realPath, options: options);
-    
+
     if (realStatus == null) {
       return null;
     }
-    
+
     // 将真实路径转换为alias路径
     return FileStatus(
       path: path,
