@@ -1,30 +1,126 @@
-# This file configures the static analysis results for your project (errors,
-# warnings, and lints).
-#
-# This enables the 'recommended' set of lints from `package:lints`.
-# This set helps identify many issues that may lead to problems when running
-# or consuming Dart code, and enforces writing Dart using a single, idiomatic
-# style and format.
-#
-# If you want a smaller set of lints you can change this to specify
-# 'package:lints/core.yaml'. These are just the most critical lints
-# (the recommended set includes the core lints).
-# The core lints are also what is used by pub.dev for scoring packages.
-
 include: package:lints/recommended.yaml
 
-# Uncomment the following section to specify additional rules.
+analyzer:
+  # 排除不需要分析的文件和目录
+  exclude:
+    - "**/*.g.dart" # 生成的代码文件
+    - "**/*.freezed.dart" # freezed生成的文件
+    - "**/*.chopper.dart" # chopper生成的文件
+    - "build/**" # 构建输出目录
+    - ".dart_tool/**" # Dart工具目录
+    - "coverage/**" # 测试覆盖率文件
 
-# linter:
-#   rules:
-#     - camel_case_types
+  # 错误和警告的严重性设置
+  errors:
+    # 将警告视为错误，确保代码质量
+    invalid_assignment: error
+    missing_enum_constant_in_switch: error
+    missing_required_param: error
+    missing_return: error
+    dead_code: info
 
-# analyzer:
-#   exclude:
-#     - path/to/excluded/files/**
+  # 语言特性配置
+  language:
+    strict-casts: true
+    strict-inference: true
+    strict-raw-types: true
 
-# For more information about the core and recommended set of lints, see
-# https://dart.dev/go/core-lints
+linter:
+  rules:
+    # === 代码风格规则 ===
 
-# For additional information about configuring this file, see
-# https://dart.dev/guides/language/analysis-options
+    # 命名约定
+    - camel_case_types # 类型使用驼峰命名
+    - camel_case_extensions # 扩展使用驼峰命名
+    - library_names # 库名使用小写+下划线
+    - file_names # 文件名使用小写+下划线
+    - package_names # 包名使用小写+下划线
+    - non_constant_identifier_names # 变量使用驼峰命名
+    - constant_identifier_names # 常量使用大写+下划线
+
+    # 注释和文档
+    - slash_for_doc_comments # 使用///而不是/***/
+    # - package_api_docs # 公共API需要文档注释
+    # - public_member_api_docs # 公共成员需要文档注释
+
+    # 代码组织
+    - directives_ordering # import语句排序
+    - sort_child_properties_last # child属性放在最后
+    - sort_constructors_first # 构造函数放在最前面
+    - sort_unnamed_constructors_first # 未命名构造函数优先
+
+    # === 设计规则 ===
+
+    # 类设计
+    - avoid_classes_with_only_static_members # 避免只有静态成员的类
+    - prefer_mixin # 优先使用mixin而不是抽象类
+    - use_super_parameters # 使用super参数简化构造函数
+
+    # 构造函数
+    - prefer_const_constructors # 优先使用const构造函数
+    - prefer_const_constructors_in_immutables # 不可变类使用const
+    - prefer_const_declarations # 优先使用const声明
+    - prefer_final_fields # 优先使用final字段
+    # - prefer_final_locals # 优先使用final局部变量
+    - prefer_final_in_for_each # for-each循环中使用final
+
+    # === 使用规则 ===
+
+    # 集合
+    - prefer_collection_literals # 优先使用字面量创建集合
+    - prefer_is_empty # 使用isEmpty而不是length == 0
+    - prefer_is_not_empty # 使用isNotEmpty而不是length != 0
+    - prefer_iterable_whereType # 使用whereType进行类型过滤
+    - prefer_contains # 使用contains而不是indexOf != -1
+
+    # 字符串
+    - prefer_adjacent_string_concatenation # 相邻字符串自动连接
+    - prefer_interpolation_to_compose_strings # 使用字符串插值
+    - unnecessary_string_interpolations # 避免不必要的字符串插值
+
+    # 函数
+    - prefer_function_declarations_over_variables # 优先使用函数声明
+    - use_function_type_syntax_for_parameters # 函数参数使用函数类型语法
+    - avoid_positional_boolean_parameters # 避免位置布尔参数
+    - avoid_bool_literals_in_conditional_expressions # 避免条件表达式中的布尔字面量
+
+    # 异步
+    - unawaited_futures # 标记未等待的Future
+
+    # === 错误处理 ===
+    - avoid_catching_errors # 避免捕获Error
+    - use_rethrow_when_possible # 可能时使用rethrow
+
+    # === 效率规则 ===
+    - prefer_spread_collections # 使用展开运算符
+    - unnecessary_lambdas # 避免不必要的lambda
+    - unnecessary_getters_setters # 避免不必要的getter/setter
+    - unnecessary_this # 避免不必要的this
+    - unnecessary_new # 避免不必要的new关键字
+    - unnecessary_const # 避免不必要的const
+    - unnecessary_parenthesis # 避免不必要的括号
+
+    # === 样式规则 ===
+    - curly_braces_in_flow_control_structures # 控制流语句使用大括号
+    - prefer_single_quotes # 优先使用单引号
+    - require_trailing_commas # 要求尾随逗号（多行时）
+    - lines_longer_than_80_chars # 限制单行长度不超过80字符
+
+    # 空值安全
+    - prefer_null_aware_operators # 使用空值感知操作符
+    - unnecessary_null_checks # 避免不必要的空值检查
+    - unnecessary_null_in_if_null_operators # 避免??操作符中不必要的null
+
+    # === Dart 3.0+ 特性 ===
+    # - prefer_final_parameters # 参数使用final
+    - use_colored_box # 使用ColoredBox而不是Container
+    - use_decorated_box # 使用DecoratedBox而不是Container
+
+
+    # === 禁用的规则 ===
+    # 这些规则在某些情况下可能过于严格，根据项目需要启用
+    # - always_put_required_named_parameters_first
+    # - always_specify_types
+    # - avoid_function_literals_in_foreach_calls
+    # - prefer_double_quotes
+    # - omit_local_variable_types

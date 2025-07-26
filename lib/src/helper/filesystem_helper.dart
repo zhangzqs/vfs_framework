@@ -46,7 +46,7 @@ Future<void> recursiveCreateDirectory({
     return;
   }
   // 递归逐级依次创建目录
-  var dirs = [];
+  var dirs = <Path>[];
   var currentPath = path;
   while (!currentPath.isRoot) {
     dirs.add(currentPath);
@@ -87,7 +87,7 @@ Future<void> recursiveDelete({
 
     await for (final status in nonRecursiveList(
       currentPath,
-      options: ListOptions(recursive: true),
+      options: const ListOptions(recursive: true),
     )) {
       if (status.isDirectory) {
         queue.add(status.path);
@@ -115,12 +115,12 @@ Future<void> recursiveCopy({
   recursiveCreateDirectory,
 }) async {
   // 检查源是否存在
-  if (await nonRecursiveList(source, options: ListOptions()).isEmpty) {
+  if (await nonRecursiveList(source).isEmpty) {
     throw FileSystemException.notFound(source);
   }
 
   // 检查目标是否已存在
-  if (!(await nonRecursiveList(destination, options: ListOptions()).isEmpty)) {
+  if (!(await nonRecursiveList(destination).isEmpty)) {
     if (!options.overwrite) {
       throw FileSystemException.alreadyExists(destination);
     }
@@ -128,7 +128,7 @@ Future<void> recursiveCopy({
     // 如果目标目录不存在，则创建它
     await recursiveCreateDirectory(
       destination.parent!,
-      options: CreateDirectoryOptions(createParents: true),
+      options: const CreateDirectoryOptions(createParents: true),
     );
   }
 
@@ -143,13 +143,13 @@ Future<void> recursiveCopy({
 
     await for (final status in nonRecursiveList(
       currentSource,
-      options: ListOptions(recursive: true),
+      options: const ListOptions(recursive: true),
     )) {
       if (status.isDirectory) {
         final newDest = destination.join(status.path.filename!);
         await recursiveCreateDirectory(
           newDest,
-          options: CreateDirectoryOptions(createParents: true),
+          options: const CreateDirectoryOptions(createParents: true),
         );
         queue.add(status.path);
       } else {
@@ -174,7 +174,7 @@ Future<void> copyFileByReadAndWrite(
   final readStream = openRead(source);
   final writeSink = await openWrite(
     destination,
-    options: WriteOptions(mode: WriteMode.overwrite),
+    options: const WriteOptions(mode: WriteMode.overwrite),
   );
   await for (final chunk in readStream) {
     writeSink.add(chunk);

@@ -5,11 +5,11 @@ import '../abstract/index.dart';
 
 /// 用于把另一个文件系统里的某个子文件夹作为一个新文件系统
 class AliasFileSystem extends IFileSystem {
-  final IFileSystem fileSystem;
-  final Path subDirectory;
-
   AliasFileSystem({required this.fileSystem, Path? subDirectory})
     : subDirectory = subDirectory ?? Path.rootPath;
+
+  final IFileSystem fileSystem;
+  final Path subDirectory;
 
   /// 将alias路径转换为底层文件系统的实际路径
   Path _convertToRealPath(Path aliasPath) {

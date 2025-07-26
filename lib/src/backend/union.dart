@@ -4,25 +4,25 @@ import 'dart:typed_data';
 import '../abstract/index.dart';
 
 class UnionFileSystemItem {
-  final IFileSystem fileSystem;
-  final Path mountPath;
-  final bool readOnly;
-  final int priority;
-
   UnionFileSystemItem({
     required this.fileSystem,
     required this.mountPath,
     this.readOnly = false,
     this.priority = 0,
   });
+
+  final IFileSystem fileSystem;
+  final Path mountPath;
+  final bool readOnly;
+  final int priority;
 }
 
 class UnionFileSystem extends IFileSystem {
-  final List<UnionFileSystemItem> _items;
-
   UnionFileSystem(List<UnionFileSystemItem> items)
     : _items = List.from(items)
         ..sort((a, b) => b.priority.compareTo(a.priority));
+
+  final List<UnionFileSystemItem> _items;
 
   /// 获取路径对应的文件系统项，按优先级排序
   List<UnionFileSystemItem> _getItemsForPath(Path path) {

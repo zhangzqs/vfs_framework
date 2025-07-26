@@ -5,10 +5,10 @@ import 'package:shelf/shelf_io.dart';
 import 'package:vfs_framework/src/abstract/index.dart';
 
 class HttpServer {
+  HttpServer(this.fs);
+
   final IFileSystem fs;
   io.HttpServer? _server;
-
-  HttpServer(this.fs);
 
   /// 启动HTTP服务器
   Future<io.HttpServer> start(String address, int port) async {
@@ -84,7 +84,7 @@ class HttpServer {
       // 按目录优先，然后按名称排序
       files.sort((a, b) {
         if (a['isDirectory'] != b['isDirectory']) {
-          return a['isDirectory'] ? -1 : 1;
+          return a['isDirectory'] == true ? -1 : 1;
         }
         return (a['name'] as String).compareTo(b['name'] as String);
       });

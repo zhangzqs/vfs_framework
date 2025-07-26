@@ -1,21 +1,24 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import '../abstract/index.dart';
 import '../helper/filesystem_helper.dart';
 import '../helper/mime_type_helper.dart';
-import '../abstract/index.dart';
 
 class _MemoryFileEntity {
+  _MemoryFileEntity(this.status, {this.children});
+
   String get name => status.path.segments.last;
   FileStatus status;
   // 如果是文件则有内容
   Uint8List? content;
   // 如果是目录则有子项
   Set<_MemoryFileEntity>? children;
-  _MemoryFileEntity(this.status, {this.children});
 }
 
 class MemoryFileSystem extends IFileSystem with FileSystemHelper {
+  MemoryFileSystem();
+
   final _rootDir = _MemoryFileEntity(
     FileStatus(path: Path([]), isDirectory: true),
     children: {},
@@ -201,7 +204,7 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
       FileStatus(
         path: path,
         isDirectory: false,
-        mimeType: MimeTypeHelper.getMimeType(path.filename ?? ''),
+        mimeType: detectMimeType(path.filename ?? ''),
       ),
     );
     parentEntity.children!.add(newEntity); // 添加新文件
@@ -222,15 +225,11 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
           path: path,
           isDirectory: false,
           size: newEntity.content!.length,
-          mimeType: MimeTypeHelper.getMimeType(path.filename ?? ''),
+          mimeType: detectMimeType(path.filename ?? ''),
         );
       },
-      onDone: () {
-        controller.close();
-      },
-      onError: (error) {
-        controller.addError(error);
-      },
+      onDone: controller.close,
+      onError: controller.addError,
     );
     return controller.sink;
   }

@@ -7,10 +7,11 @@ import '../helper/filesystem_helper.dart';
 import '../helper/mime_type_helper.dart';
 
 class LocalFileSystem extends IFileSystem with FileSystemHelper {
-  /// 本地文件系统的基础目录
-  final Directory baseDir;
   LocalFileSystem({Directory? baseDir})
     : baseDir = baseDir ?? Directory.current;
+
+  /// 本地文件系统的基础目录
+  final Directory baseDir;
 
   // 将抽象Path转换为本地文件系统路径
   String _toLocalPath(Path path) {
@@ -51,7 +52,7 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
         size: stat.type == FileSystemEntityType.file ? stat.size : null,
         isDirectory: stat.type == FileSystemEntityType.directory,
         mimeType: stat.type == FileSystemEntityType.file
-            ? MimeTypeHelper.getMimeType(path.filename ?? '')
+            ? detectMimeType(path.filename ?? '')
             : null,
       );
     } on FileSystemException {
@@ -77,7 +78,7 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
           size: stat.type == FileSystemEntityType.file ? stat.size : null,
           isDirectory: stat.type == FileSystemEntityType.directory,
           mimeType: stat.type == FileSystemEntityType.file
-              ? MimeTypeHelper.getMimeType(p.basename(entity.path))
+              ? detectMimeType(p.basename(entity.path))
               : null,
         );
       } on IOException {
