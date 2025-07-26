@@ -8,20 +8,20 @@ import 'package:vfs_framework/helper/mime_type_helper.dart';
 
 class LocalFileSystem extends IFileSystem with FileSystemHelper {
   /// 本地文件系统的基础目录
-  final String baseDir;
-  LocalFileSystem({String? baseDir})
-    : baseDir = p.normalize(p.absolute(baseDir ?? Directory.current.path));
+  final Directory baseDir;
+  LocalFileSystem({Directory? baseDir})
+    : baseDir = baseDir ?? Directory.current;
 
   // 将抽象Path转换为本地文件系统路径
   String _toLocalPath(Path path) {
     // 使用path包处理跨平台路径拼接
-    return p.join(baseDir, p.joinAll(path.segments));
+    return p.join(baseDir.path, p.joinAll(path.segments));
   }
 
   // 将本地路径转换为抽象Path
   Path _toPath(String localPath) {
     // 计算相对于baseDir的相对路径
-    String relative = p.relative(localPath, from: baseDir);
+    String relative = p.relative(localPath, from: baseDir.path);
 
     // 处理特殊情况：根目录
     if (relative == '.') return Path([]);
@@ -50,8 +50,8 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
         path: path,
         size: stat.type == FileSystemEntityType.file ? stat.size : null,
         isDirectory: stat.type == FileSystemEntityType.directory,
-        mimeType: stat.type == FileSystemEntityType.file 
-            ? MimeTypeHelper.getMimeType(path.filename ?? '') 
+        mimeType: stat.type == FileSystemEntityType.file
+            ? MimeTypeHelper.getMimeType(path.filename ?? '')
             : null,
       );
     } on FileSystemException {
@@ -76,8 +76,8 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
           path: _toPath(entity.path),
           size: stat.type == FileSystemEntityType.file ? stat.size : null,
           isDirectory: stat.type == FileSystemEntityType.directory,
-          mimeType: stat.type == FileSystemEntityType.file 
-              ? MimeTypeHelper.getMimeType(p.basename(entity.path)) 
+          mimeType: stat.type == FileSystemEntityType.file
+              ? MimeTypeHelper.getMimeType(p.basename(entity.path))
               : null,
         );
       } on IOException {
