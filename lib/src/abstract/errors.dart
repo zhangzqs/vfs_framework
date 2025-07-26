@@ -16,11 +16,6 @@ enum FileSystemErrorCode {
 
 /// 统一文件系统异常
 class FileSystemException implements Exception {
-  final FileSystemErrorCode code;
-  final String message;
-  final Path? path;
-  final Path? otherPath;
-
   const FileSystemException({
     required this.code,
     required this.message,
@@ -81,6 +76,12 @@ class FileSystemException implements Exception {
     message: 'File system is read-only',
     path: path,
   );
+
+  final FileSystemErrorCode code;
+  final String message;
+  final Path? path;
+  final Path? otherPath;
+
   @override
   String toString() => 'FileSystemException($code, $path): $message';
 }

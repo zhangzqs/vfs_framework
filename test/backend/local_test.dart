@@ -6,7 +6,7 @@ import 'package:vfs_framework/vfs_framework.dart';
 import 'filesystem_testsuites.dart';
 
 void main() {
-  group("test LocalFileSystem by filesystem test suites", () {
+  group('test LocalFileSystem by filesystem test suites', () {
     late LocalFileSystem fileSystem;
     late Directory tempDir;
 

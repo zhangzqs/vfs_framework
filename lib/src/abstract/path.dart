@@ -1,9 +1,6 @@
 import 'package:equatable/equatable.dart';
 
 final class Path extends Equatable {
-  static final rootPath = Path([]);
-
-  final List<String> segments;
 
   Path(this.segments) {
     // 禁止出现.和..
@@ -11,12 +8,15 @@ final class Path extends Equatable {
       throw ArgumentError('Path segments cannot contain "." or ".."');
     }
   }
+  static final rootPath = Path([]);
+
+  final List<String> segments;
 
   static Path fromString(String path) {
     // 自动处理.和..，并去除多余的斜杠
     List<String> parts = path.split('/');
     List<String> cleanedParts = [];
-    for (String part in parts) {
+    for (final String part in parts) {
       if (part == '.' || part.isEmpty) {
         continue; // 忽略当前目录和多余的斜杠
       } else if (part == '..') {

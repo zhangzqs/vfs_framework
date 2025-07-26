@@ -5,9 +5,9 @@ import 'package:vfs_framework/src/frontend/http.dart';
 
 Future<void> main() async {
   // 创建本地文件系统后端
-  final fs1 = LocalFileSystem(baseDir: Directory("C:/"));
-  final fs2 = LocalFileSystem(baseDir: Directory("D:/"));
-  final fs3 = LocalFileSystem(baseDir: Directory("Z:/"));
+  final fs1 = LocalFileSystem(baseDir: Directory('C:/'));
+  final fs2 = LocalFileSystem(baseDir: Directory('D:/'));
+  final fs3 = LocalFileSystem(baseDir: Directory('Z:/'));
   final fs = UnionFileSystem([
     UnionFileSystemItem(fileSystem: fs1, mountPath: Path.fromString('/C')),
     UnionFileSystemItem(fileSystem: fs2, mountPath: Path.fromString('/D')),
@@ -28,5 +28,5 @@ Future<void> main() async {
   });
 
   // 保持程序运行
-  await Future.delayed(Duration(days: 365));
+  await Future<void>.delayed(const Duration(days: 365));
 }

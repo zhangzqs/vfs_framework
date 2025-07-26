@@ -1,6 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:test/test.dart';
 import 'package:vfs_framework/vfs_framework.dart';
-import 'dart:typed_data';
 
 void main() {
   group('test UnionFileSystem', () {

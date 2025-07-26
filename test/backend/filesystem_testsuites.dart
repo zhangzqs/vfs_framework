@@ -4,17 +4,17 @@ import 'package:test/test.dart';
 import 'package:vfs_framework/vfs_framework.dart';
 
 void testFilesystem(IFileSystem Function() fsGetter) {
-  group("stat", () {
-    test("return null for non-existen path", () async {
+  group('stat', () {
+    test('return null for non-existen path', () async {
       final fs = fsGetter();
-      final path = Path.fromString("/non/existent/path");
+      final path = Path.fromString('/non/existent/path');
       final status = await fs.stat(path);
       expect(status, isNull);
     });
     test('returns file status for existing file', () async {
       final fs = fsGetter();
 
-      final path = Path.fromString("/file.txt");
+      final path = Path.fromString('/file.txt');
       await fs.writeBytes(path, Uint8List.fromList([1, 2, 3, 4]));
       final result = await fs.stat(path);
 
@@ -25,7 +25,7 @@ void testFilesystem(IFileSystem Function() fsGetter) {
     test('returns directory status for existing directory', () async {
       final fs = fsGetter();
 
-      final path = Path.fromString("/test");
+      final path = Path.fromString('/test');
       await fs.createDirectory(path);
       final result = await fs.stat(path);
 
@@ -34,9 +34,9 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       expect(result.size, isNull);
     });
 
-    test("return directory status for root path", () async {
+    test('return directory status for root path', () async {
       final fs = fsGetter();
-      final path = Path.fromString("/");
+      final path = Path.fromString('/');
       final result = await fs.stat(path);
 
       expect(result, isNotNull);
@@ -45,10 +45,10 @@ void testFilesystem(IFileSystem Function() fsGetter) {
     });
   });
 
-  group("exists", () {
-    test("returns false for non-existent path", () async {
+  group('exists', () {
+    test('returns false for non-existent path', () async {
       final fs = fsGetter();
-      final path = Path.fromString("/non/existent/path");
+      final path = Path.fromString('/non/existent/path');
       final exists = await fs.exists(path);
       expect(exists, isFalse);
     });
@@ -56,7 +56,7 @@ void testFilesystem(IFileSystem Function() fsGetter) {
     test('returns true for existing file', () async {
       final fs = fsGetter();
 
-      final path = Path.fromString("/file.txt");
+      final path = Path.fromString('/file.txt');
       await fs.writeBytes(path, Uint8List.fromList([1, 2, 3, 4]));
       final exists = await fs.exists(path);
 
@@ -66,7 +66,7 @@ void testFilesystem(IFileSystem Function() fsGetter) {
     test('returns true for existing directory', () async {
       final fs = fsGetter();
 
-      final path = Path.fromString("/test");
+      final path = Path.fromString('/test');
       await fs.createDirectory(path);
       final exists = await fs.exists(path);
 
@@ -74,29 +74,29 @@ void testFilesystem(IFileSystem Function() fsGetter) {
     });
   });
 
-  group("createDirectory", () {
-    test("create directory successfully", () async {
+  group('createDirectory', () {
+    test('create directory successfully', () async {
       final fs = fsGetter();
-      final path = Path.fromString("/test");
+      final path = Path.fromString('/test');
       await fs.createDirectory(path);
       final exists = await fs.exists(path);
       expect(exists, isTrue);
     });
 
-    test("create nested directories", () async {
+    test('create nested directories', () async {
       final fs = fsGetter();
-      final path = Path.fromString("/test/nested/dir");
+      final path = Path.fromString('/test/nested/dir');
       await fs.createDirectory(
         path,
-        options: CreateDirectoryOptions(createParents: true),
+        options: const CreateDirectoryOptions(createParents: true),
       );
       final exists = await fs.exists(path);
       expect(exists, isTrue);
     });
 
-    test("throws when parent does not exist and recursive is false", () async {
+    test('throws when parent does not exist and recursive is false', () async {
       final fs = fsGetter();
-      final path = Path.fromString("/non/existent/dir");
+      final path = Path.fromString('/non/existent/dir');
 
       // 期望异常为FileSystemException并且包含notFound错误码
       expect(
@@ -111,9 +111,9 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       );
     });
 
-    test("throws when trying to create a file as a directory", () async {
+    test('throws when trying to create a file as a directory', () async {
       final fs = fsGetter();
-      final path = Path.fromString("/file.txt");
+      final path = Path.fromString('/file.txt');
       await fs.writeBytes(path, Uint8List.fromList([1, 2, 3, 4]));
 
       // 期望异常为FileSystemException并且包含notADirectory错误码
@@ -129,9 +129,9 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       );
     });
 
-    test("throws when trying to create an existing directory", () async {
+    test('throws when trying to create an existing directory', () async {
       final fs = fsGetter();
-      final path = Path.fromString("/test");
+      final path = Path.fromString('/test');
       await fs.createDirectory(path);
 
       // 期望异常为FileSystemException并且包含alreadyExists错误码
@@ -148,10 +148,10 @@ void testFilesystem(IFileSystem Function() fsGetter) {
     });
   });
 
-  group("delete", () {
-    test("deletes file successfully", () async {
+  group('delete', () {
+    test('deletes file successfully', () async {
       final fs = fsGetter();
-      final path = Path.fromString("/file.txt");
+      final path = Path.fromString('/file.txt');
       await fs.writeBytes(path, Uint8List.fromList([1, 2, 3, 4]));
       expect(await fs.exists(path), isTrue);
 
@@ -159,11 +159,11 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       expect(await fs.exists(path), isFalse);
     });
 
-    test("deletes empty directory successfully", () async {
+    test('deletes empty directory successfully', () async {
       final fs = fsGetter();
 
       // 创建一个空目录
-      final path = Path.fromString("/dir");
+      final path = Path.fromString('/dir');
       await fs.createDirectory(path);
 
       // 确认是个空目录
@@ -177,16 +177,16 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       expect(await fs.exists(path), isFalse);
     });
 
-    test("deletes non-empty directory with recursive option", () async {
+    test('deletes non-empty directory with recursive option', () async {
       final fs = fsGetter();
 
       // 创建一个非空目录
-      final dirPath = Path.fromString("/test/dir");
+      final dirPath = Path.fromString('/test/dir');
       await fs.createDirectory(
         dirPath,
-        options: CreateDirectoryOptions(createParents: true),
+        options: const CreateDirectoryOptions(createParents: true),
       );
-      final filePath = Path.fromString("/test/dir/file.txt");
+      final filePath = Path.fromString('/test/dir/file.txt');
       await fs.writeBytes(filePath, Uint8List.fromList([1, 2, 3, 4]));
 
       // 确认目录和文件存在
@@ -194,14 +194,14 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       expect(await fs.exists(filePath), isTrue);
 
       // 删除目录
-      await fs.delete(dirPath, options: DeleteOptions(recursive: true));
+      await fs.delete(dirPath, options: const DeleteOptions(recursive: true));
       expect(await fs.exists(dirPath), isFalse);
       expect(await fs.exists(filePath), isFalse);
     });
 
-    test("throws when deleting non-existent path", () async {
+    test('throws when deleting non-existent path', () async {
       final fs = fsGetter();
-      final path = Path.fromString("/non/existent/path");
+      final path = Path.fromString('/non/existent/path');
 
       expect(
         () => fs.delete(path),
@@ -216,15 +216,15 @@ void testFilesystem(IFileSystem Function() fsGetter) {
     });
 
     test(
-      "throws when deleting non-empty directory without recursive",
+      'throws when deleting non-empty directory without recursive',
       () async {
         final fs = fsGetter();
-        final dirPath = Path.fromString("/test/dir");
-        final filePath = Path.fromString("/test/dir/file.txt");
+        final dirPath = Path.fromString('/test/dir');
+        final filePath = Path.fromString('/test/dir/file.txt');
 
         await fs.createDirectory(
           dirPath,
-          options: CreateDirectoryOptions(createParents: true),
+          options: const CreateDirectoryOptions(createParents: true),
         );
         await fs.writeBytes(filePath, Uint8List.fromList([1, 2, 3, 4]));
 
@@ -242,19 +242,19 @@ void testFilesystem(IFileSystem Function() fsGetter) {
     );
   });
 
-  group("writeBytes and readAsBytes", () {
-    test("writes and reads file content", () async {
+  group('writeBytes and readAsBytes', () {
+    test('writes and reads file content', () async {
       final fs = fsGetter();
-      final path = Path.fromString("/test_file.txt");
+      final path = Path.fromString('/test_file.txt');
       final data = Uint8List.fromList([1, 2, 3, 4, 5]);
       await fs.writeBytes(path, data);
       final readData = await fs.readAsBytes(path);
       expect(readData, equals(data));
     });
 
-    test("throws when writing existing file without overwrite", () async {
+    test('throws when writing existing file without overwrite', () async {
       final fs = fsGetter();
-      final path = Path.fromString("/test_file.txt");
+      final path = Path.fromString('/test_file.txt');
       final data = Uint8List.fromList([1, 2, 3, 4, 5]);
       await fs.writeBytes(path, data);
 
@@ -275,15 +275,15 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       await fs.writeBytes(
         path,
         newData,
-        options: WriteOptions(mode: WriteMode.overwrite),
+        options: const WriteOptions(mode: WriteMode.overwrite),
       );
       final readData = await fs.readAsBytes(path);
       expect(readData, equals(newData));
     });
 
-    test("appends to existing file when append is true", () async {
+    test('appends to existing file when append is true', () async {
       final fs = fsGetter();
-      final path = Path.fromString("/test_file.txt");
+      final path = Path.fromString('/test_file.txt');
       final data1 = Uint8List.fromList([1, 2, 3]);
       final data2 = Uint8List.fromList([4, 5, 6]);
 
@@ -291,7 +291,7 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       await fs.writeBytes(
         path,
         data2,
-        options: WriteOptions(mode: WriteMode.append),
+        options: const WriteOptions(mode: WriteMode.append),
       );
 
       final readData = await fs.readAsBytes(path);
@@ -299,14 +299,14 @@ void testFilesystem(IFileSystem Function() fsGetter) {
     });
   });
 
-  group("list files", () {
-    test("lists files in directory", () async {
+  group('list files', () {
+    test('lists files in directory', () async {
       final fs = fsGetter();
-      final dirPath = Path.fromString("/test_dir");
+      final dirPath = Path.fromString('/test_dir');
       await fs.createDirectory(dirPath);
 
-      final file1 = Path.fromString("/test_dir/file1.txt");
-      final file2 = Path.fromString("/test_dir/file2.txt");
+      final file1 = Path.fromString('/test_dir/file1.txt');
+      final file2 = Path.fromString('/test_dir/file2.txt');
       await fs.writeBytes(file1, Uint8List.fromList([1, 2, 3]));
       await fs.writeBytes(file2, Uint8List.fromList([4, 5, 6]));
 
@@ -315,18 +315,18 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       expect(files.map((f) => f.path), containsAll([file1, file2]));
     });
 
-    test("returns empty list for empty directory", () async {
+    test('returns empty list for empty directory', () async {
       final fs = fsGetter();
-      final dirPath = Path.fromString("/empty_dir");
+      final dirPath = Path.fromString('/empty_dir');
       await fs.createDirectory(dirPath);
 
       final files = await fs.list(dirPath).toList();
       expect(files, isEmpty);
     });
 
-    test("throws when listing non-existent directory", () async {
+    test('throws when listing non-existent directory', () async {
       final fs = fsGetter();
-      final path = Path.fromString("/non/existent/dir");
+      final path = Path.fromString('/non/existent/dir');
 
       expect(
         () => fs.list(path).toList(),
@@ -340,9 +340,9 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       );
     });
 
-    test("throws when listing a file instead of directory", () async {
+    test('throws when listing a file instead of directory', () async {
       final fs = fsGetter();
-      final filePath = Path.fromString("/test_file.txt");
+      final filePath = Path.fromString('/test_file.txt');
       await fs.writeBytes(filePath, Uint8List.fromList([1, 2, 3]));
 
       expect(
@@ -357,21 +357,21 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       );
     });
 
-    test("lists files recursively", () async {
+    test('lists files recursively', () async {
       final fs = fsGetter();
-      final rootDir = Path.fromString("/root");
+      final rootDir = Path.fromString('/root');
       await fs.createDirectory(rootDir);
 
-      final subDir = Path.fromString("/root/sub");
+      final subDir = Path.fromString('/root/sub');
       await fs.createDirectory(subDir);
 
-      final file1 = Path.fromString("/root/file1.txt");
-      final file2 = Path.fromString("/root/sub/file2.txt");
+      final file1 = Path.fromString('/root/file1.txt');
+      final file2 = Path.fromString('/root/sub/file2.txt');
       await fs.writeBytes(file1, Uint8List.fromList([1, 2, 3]));
       await fs.writeBytes(file2, Uint8List.fromList([4, 5, 6]));
 
       final files = await fs
-          .list(rootDir, options: ListOptions(recursive: true))
+          .list(rootDir, options: const ListOptions(recursive: true))
           .toList();
 
       expect(files.length, equals(3));
@@ -380,11 +380,11 @@ void testFilesystem(IFileSystem Function() fsGetter) {
     });
   });
 
-  group("copy", () {
-    test("copy src not found", () async {
+  group('copy', () {
+    test('copy src not found', () async {
       final fs = fsGetter();
-      final sourcePath = Path.fromString("/non/existent/file.txt");
-      final destPath = Path.fromString("/dest/file.txt");
+      final sourcePath = Path.fromString('/non/existent/file.txt');
+      final destPath = Path.fromString('/dest/file.txt');
 
       expect(
         () => fs.copy(sourcePath, destPath),
@@ -398,10 +398,10 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       );
     });
 
-    test("copies file successfully", () async {
+    test('copies file successfully', () async {
       final fs = fsGetter();
-      final sourcePath = Path.fromString("/source.txt");
-      final destPath = Path.fromString("/dest.txt");
+      final sourcePath = Path.fromString('/source.txt');
+      final destPath = Path.fromString('/dest.txt');
       await fs.writeBytes(sourcePath, Uint8List.fromList([1, 2, 3, 4]));
 
       await fs.copy(sourcePath, destPath);
@@ -409,10 +409,10 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       expect(destData, equals(Uint8List.fromList([1, 2, 3, 4])));
     });
 
-    test("throws when copying non-existent source", () async {
+    test('throws when copying non-existent source', () async {
       final fs = fsGetter();
-      final sourcePath = Path.fromString("/nonexistent.txt");
-      final destPath = Path.fromString("/dest.txt");
+      final sourcePath = Path.fromString('/nonexistent.txt');
+      final destPath = Path.fromString('/dest.txt');
 
       expect(
         () => fs.copy(sourcePath, destPath),
@@ -426,10 +426,10 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       );
     });
 
-    test("throws when copying to existing file without overwrite", () async {
+    test('throws when copying to existing file without overwrite', () async {
       final fs = fsGetter();
-      final sourcePath = Path.fromString("/source.txt");
-      final destPath = Path.fromString("/dest.txt");
+      final sourcePath = Path.fromString('/source.txt');
+      final destPath = Path.fromString('/dest.txt');
       await fs.writeBytes(sourcePath, Uint8List.fromList([1, 2, 3, 4]));
       await fs.writeBytes(destPath, Uint8List.fromList([5, 6, 7, 8]));
 
@@ -445,20 +445,20 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       );
     });
 
-    test("copies directory recursively", () async {
+    test('copies directory recursively', () async {
       final fs = fsGetter();
-      final sourceDir = Path.fromString("/source_dir");
-      final destDir = Path.fromString("/dest_dir");
+      final sourceDir = Path.fromString('/source_dir');
+      final destDir = Path.fromString('/dest_dir');
       await fs.createDirectory(sourceDir);
       await fs.createDirectory(destDir);
-      final file1 = Path.fromString("/source_dir/file1.txt");
-      final file2 = Path.fromString("/source_dir/file2.txt");
+      final file1 = Path.fromString('/source_dir/file1.txt');
+      final file2 = Path.fromString('/source_dir/file2.txt');
       await fs.writeBytes(file1, Uint8List.fromList([1, 2, 3]));
       await fs.writeBytes(file2, Uint8List.fromList([4, 5, 6]));
 
-      await fs.copy(sourceDir, destDir, options: CopyOptions(recursive: true));
-      final copiedFile1 = Path.fromString("/dest_dir/file1.txt");
-      final copiedFile2 = Path.fromString("/dest_dir/file2.txt");
+      await fs.copy(sourceDir, destDir, options: const CopyOptions(recursive: true));
+      final copiedFile1 = Path.fromString('/dest_dir/file1.txt');
+      final copiedFile2 = Path.fromString('/dest_dir/file2.txt');
 
       // 递归列举所有
       expect(await fs.exists(copiedFile1), isTrue);
@@ -473,13 +473,13 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       );
     });
 
-    test("throws when copying directory without recursive", () async {
+    test('throws when copying directory without recursive', () async {
       final fs = fsGetter();
-      final sourceDir = Path.fromString("/source_dir");
-      final destDir = Path.fromString("/dest_dir");
+      final sourceDir = Path.fromString('/source_dir');
+      final destDir = Path.fromString('/dest_dir');
       await fs.createDirectory(sourceDir);
       await fs.createDirectory(destDir);
-      final file1 = Path.fromString("/source_dir/file1.txt");
+      final file1 = Path.fromString('/source_dir/file1.txt');
       await fs.writeBytes(file1, Uint8List.fromList([1, 2, 3]));
 
       expect(
@@ -495,10 +495,10 @@ void testFilesystem(IFileSystem Function() fsGetter) {
     });
   });
 
-  group("openRead", () {
-    test("reads file content", () async {
+  group('openRead', () {
+    test('reads file content', () async {
       final fs = fsGetter();
-      final path = Path.fromString("/test_file.txt");
+      final path = Path.fromString('/test_file.txt');
       final data = Uint8List.fromList([1, 2, 3, 4, 5]);
       await fs.writeBytes(path, data);
 
@@ -511,9 +511,9 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       expect(result, equals(data));
     });
 
-    test("throws when reading non-existent file", () async {
+    test('throws when reading non-existent file', () async {
       final fs = fsGetter();
-      final path = Path.fromString("/non_existent.txt");
+      final path = Path.fromString('/non_existent.txt');
 
       expect(
         () => fs.openRead(path).toList(),
@@ -527,9 +527,9 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       );
     });
 
-    test("throws when reading a directory", () async {
+    test('throws when reading a directory', () async {
       final fs = fsGetter();
-      final dirPath = Path.fromString("/test_dir");
+      final dirPath = Path.fromString('/test_dir');
       await fs.createDirectory(dirPath);
 
       expect(
@@ -544,16 +544,16 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       );
     });
 
-    test("reads partial file content", () async {
+    test('reads partial file content', () async {
       final fs = fsGetter();
-      final path = Path.fromString("/test_file.txt");
+      final path = Path.fromString('/test_file.txt');
       final data = Uint8List.fromList('Hello, World!'.codeUnits);
       await fs.writeBytes(path, data);
 
       final chunks = <List<int>>[];
       await for (final chunk in fs.openRead(
         path,
-        options: ReadOptions(start: 0, end: 5),
+        options: const ReadOptions(start: 0, end: 5),
       )) {
         chunks.add(chunk);
       }
@@ -563,10 +563,10 @@ void testFilesystem(IFileSystem Function() fsGetter) {
     });
   });
 
-  group("openWrite", () {
+  group('openWrite', () {
     test('opens write stream successfully', () async {
       final fs = fsGetter();
-      final path = Path.fromString("/test_file.txt");
+      final path = Path.fromString('/test_file.txt');
       final sink = await fs.openWrite(path);
       sink.add('Hello, '.codeUnits);
       sink.add('World!'.codeUnits);
@@ -578,7 +578,7 @@ void testFilesystem(IFileSystem Function() fsGetter) {
 
     test('throws when writing to a directory', () async {
       final fs = fsGetter();
-      final dirPath = Path.fromString("/test_dir");
+      final dirPath = Path.fromString('/test_dir');
       await fs.createDirectory(dirPath);
 
       expect(
@@ -595,7 +595,7 @@ void testFilesystem(IFileSystem Function() fsGetter) {
 
     test('throws when writing to non-existent parent directory', () async {
       final fs = fsGetter();
-      final path = Path.fromString("/non_existent_dir/test_file.txt");
+      final path = Path.fromString('/non_existent_dir/test_file.txt');
 
       expect(
         () => fs.openWrite(path),
@@ -611,17 +611,17 @@ void testFilesystem(IFileSystem Function() fsGetter) {
 
     test('writes with append mode', () async {
       final fs = fsGetter();
-      final path = Path.fromString("/test_file.txt");
+      final path = Path.fromString('/test_file.txt');
       final sink = await fs.openWrite(
         path,
-        options: WriteOptions(mode: WriteMode.append),
+        options: const WriteOptions(mode: WriteMode.append),
       );
       sink.add('Hello, '.codeUnits);
       await sink.close();
       // 再次打开并追加内容
       final appendSink = await fs.openWrite(
         path,
-        options: WriteOptions(mode: WriteMode.append),
+        options: const WriteOptions(mode: WriteMode.append),
       );
       appendSink.add('World!'.codeUnits);
       await appendSink.close();
@@ -632,17 +632,17 @@ void testFilesystem(IFileSystem Function() fsGetter) {
 
     test('writes with overwrite mode', () async {
       final fs = fsGetter();
-      final path = Path.fromString("/test_file.txt");
+      final path = Path.fromString('/test_file.txt');
       final sink = await fs.openWrite(
         path,
-        options: WriteOptions(mode: WriteMode.overwrite),
+        options: const WriteOptions(mode: WriteMode.overwrite),
       );
       sink.add('Hello, '.codeUnits);
       await sink.close();
       // 再次打开并覆盖内容
       final overwriteSink = await fs.openWrite(
         path,
-        options: WriteOptions(mode: WriteMode.overwrite),
+        options: const WriteOptions(mode: WriteMode.overwrite),
       );
       overwriteSink.add('World!'.codeUnits);
       await overwriteSink.close();
@@ -652,11 +652,11 @@ void testFilesystem(IFileSystem Function() fsGetter) {
     });
   });
 
-  group("move", () {
-    test("moves file successfully", () async {
+  group('move', () {
+    test('moves file successfully', () async {
       final fs = fsGetter();
-      final sourcePath = Path.fromString("/source.txt");
-      final destPath = Path.fromString("/dest.txt");
+      final sourcePath = Path.fromString('/source.txt');
+      final destPath = Path.fromString('/dest.txt');
       await fs.writeBytes(sourcePath, Uint8List.fromList([1, 2, 3, 4]));
 
       await fs.move(sourcePath, destPath);
@@ -666,10 +666,10 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       expect(destData, equals(Uint8List.fromList([1, 2, 3, 4])));
     });
 
-    test("throws when moving non-existent source", () async {
+    test('throws when moving non-existent source', () async {
       final fs = fsGetter();
-      final sourcePath = Path.fromString("/non_existent.txt");
-      final destPath = Path.fromString("/dest.txt");
+      final sourcePath = Path.fromString('/non_existent.txt');
+      final destPath = Path.fromString('/dest.txt');
 
       expect(
         () => fs.move(sourcePath, destPath),
@@ -683,10 +683,10 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       );
     });
 
-    test("throws when moving to existing file without overwrite", () async {
+    test('throws when moving to existing file without overwrite', () async {
       final fs = fsGetter();
-      final sourcePath = Path.fromString("/source.txt");
-      final destPath = Path.fromString("/dest.txt");
+      final sourcePath = Path.fromString('/source.txt');
+      final destPath = Path.fromString('/dest.txt');
       await fs.writeBytes(sourcePath, Uint8List.fromList([1, 2, 3, 4]));
       await fs.writeBytes(destPath, Uint8List.fromList([5, 6, 7, 8]));
 
@@ -702,19 +702,19 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       );
     });
 
-    test("moves directory recursively", () async {
+    test('moves directory recursively', () async {
       final fs = fsGetter();
-      final sourceDir = Path.fromString("/source_dir");
-      final destDir = Path.fromString("/dest_dir");
+      final sourceDir = Path.fromString('/source_dir');
+      final destDir = Path.fromString('/dest_dir');
       await fs.createDirectory(sourceDir);
       await fs.createDirectory(destDir);
-      final file1 = Path.fromString("/source_dir/file1.txt");
-      final file2 = Path.fromString("/source_dir/file2.txt");
+      final file1 = Path.fromString('/source_dir/file1.txt');
+      final file2 = Path.fromString('/source_dir/file2.txt');
       await fs.writeBytes(file1, Uint8List.fromList([1, 2, 3]));
       await fs.writeBytes(file2, Uint8List.fromList([4, 5, 6]));
-      await fs.move(sourceDir, destDir, options: MoveOptions(recursive: true));
-      final movedFile1 = Path.fromString("/dest_dir/file1.txt");
-      final movedFile2 = Path.fromString("/dest_dir/file2.txt");
+      await fs.move(sourceDir, destDir, options: const MoveOptions(recursive: true));
+      final movedFile1 = Path.fromString('/dest_dir/file1.txt');
+      final movedFile2 = Path.fromString('/dest_dir/file2.txt');
       expect(await fs.exists(movedFile1), isTrue);
       expect(await fs.exists(movedFile2), isTrue);
       expect(
@@ -727,12 +727,12 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       );
       expect(await fs.exists(sourceDir), isFalse);
     });
-    test("throws when moving non-empty directory without recursive", () async {
+    test('throws when moving non-empty directory without recursive', () async {
       final fs = fsGetter();
-      final sourceDir = Path.fromString("/source_dir");
-      final destDir = Path.fromString("/dest_dir");
+      final sourceDir = Path.fromString('/source_dir');
+      final destDir = Path.fromString('/dest_dir');
       await fs.createDirectory(sourceDir);
-      final file1 = Path.fromString("/source_dir/file1.txt");
+      final file1 = Path.fromString('/source_dir/file1.txt');
       await fs.writeBytes(file1, Uint8List.fromList([1, 2, 3]));
 
       expect(

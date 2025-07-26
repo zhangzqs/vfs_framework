@@ -1,8 +1,9 @@
-import 'package:test/test.dart';
-import 'package:vfs_framework/vfs_framework.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:shelf/shelf.dart';
+
+import 'package:test/test.dart';
+import 'package:vfs_framework/vfs_framework.dart';
 
 void main() {
   group('HttpServer Tests', () {
@@ -57,7 +58,7 @@ void main() {
       final data = json.decode(body) as Map<String, dynamic>;
 
       expect(data['path'], equals('/documents'));
-      expect(data['files'], isA<List>());
+      expect(data['files'], isList);
 
       final files = data['files'] as List;
       expect(files.length, equals(2)); // subfolder 和 test.txt

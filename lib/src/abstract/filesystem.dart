@@ -14,16 +14,16 @@ enum WriteMode {
 }
 
 final class WriteOptions {
-  final WriteMode mode;
 
   const WriteOptions({this.mode = WriteMode.write});
+  final WriteMode mode;
 }
 
 final class ReadOptions {
-  final int? start;
-  final int? end;
 
   const ReadOptions({this.start, this.end});
+  final int? start;
+  final int? end;
 }
 
 final class StatOptions {
@@ -31,32 +31,32 @@ final class StatOptions {
 }
 
 final class ListOptions {
-  final bool recursive;
   const ListOptions({this.recursive = false});
+  final bool recursive;
 }
 
 final class CopyOptions {
+  const CopyOptions({this.overwrite = false, this.recursive = false});
   final bool overwrite;
   final bool recursive;
-  const CopyOptions({this.overwrite = false, this.recursive = false});
 }
 
 final class DeleteOptions {
-  final bool recursive;
 
   const DeleteOptions({this.recursive = false});
+  final bool recursive;
 }
 
 final class CreateDirectoryOptions {
-  final bool createParents;
 
   const CreateDirectoryOptions({this.createParents = false});
+  final bool createParents;
 }
 
 final class MoveOptions {
+  const MoveOptions({this.overwrite = false, this.recursive = false});
   final bool overwrite;
   final bool recursive;
-  const MoveOptions({this.overwrite = false, this.recursive = false});
 }
 
 final class ExistsOptions {

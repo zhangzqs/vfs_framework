@@ -1,11 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:test/test.dart';
 import 'package:vfs_framework/vfs_framework.dart';
-import 'dart:typed_data';
 
 import 'filesystem_testsuites.dart';
 
 void main() {
-  group("test AliasFileSystem by filesystem test suites", () {
+  group('test AliasFileSystem by filesystem test suites', () {
     late AliasFileSystem aliasFs;
 
     setUp(() async {
