@@ -1,7 +1,7 @@
 import 'package:test/test.dart';
-import 'package:vfs_framework/backend/memory.dart';
-import 'package:vfs_framework/frontend/http.dart';
-import 'package:vfs_framework/abstract/index.dart';
+import 'package:vfs_framework/src/backend/memory.dart';
+import 'package:vfs_framework/src/frontend/http.dart';
+import 'package:vfs_framework/src/abstract/index.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:shelf/shelf.dart';

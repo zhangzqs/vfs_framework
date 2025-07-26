@@ -1,7 +1,7 @@
 import 'dart:io';
-import 'package:vfs_framework/abstract/index.dart';
-import 'package:vfs_framework/backend/index.dart';
-import 'package:vfs_framework/frontend/http.dart';
+import 'package:vfs_framework/src/abstract/index.dart';
+import 'package:vfs_framework/src/backend/index.dart';
+import 'package:vfs_framework/src/frontend/http.dart';
 
 Future<void> main() async {
   // 创建本地文件系统后端

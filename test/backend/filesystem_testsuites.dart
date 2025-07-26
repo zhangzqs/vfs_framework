@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:test/test.dart';
-import 'package:vfs_framework/abstract/index.dart';
+import 'package:vfs_framework/src/abstract/index.dart';
 
 void testFilesystem(IFileSystem Function() fsGetter) {
   group("stat", () {
