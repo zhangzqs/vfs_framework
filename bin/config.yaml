@@ -1,0 +1,30 @@
+- name: local_fs_c
+  type: backend.local
+  config:
+    baseDir: "C:/"
+
+- name: local_fs_d
+  type: backend.local
+  config:
+    baseDir: "D:/"
+
+- name: local_fs_z
+  type: backend.local
+  config:
+    baseDir: "Z:/"
+
+- name: union_fs_c_d
+  type: backend.union
+  config:
+    items:
+      - backend: local_fs_c
+        mountPath: /c
+      - backend: local_fs_d
+        mountPath: /d
+      - backend: local_fs_z
+        mountPath: /z
+
+- name: http_server
+  type: frontend.http
+  config:
+    backend: union_fs_c_d
