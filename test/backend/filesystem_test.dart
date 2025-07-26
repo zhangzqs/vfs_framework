@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:test/test.dart';
-import 'package:vfs_framework/backend/index.dart';
+import 'package:vfs_framework/vfs_framework.dart';
 
 import 'filesystem_testsuites.dart';
 
@@ -31,5 +31,22 @@ void main() {
       fileSystem = MemoryFileSystem();
     });
     testFilesystem(() => fileSystem);
+  });
+
+  group("test AliasFileSystem", () {
+    late MemoryFileSystem baseFs;
+    late AliasFileSystem aliasFs;
+
+    setUp(() async {
+      baseFs = MemoryFileSystem();
+      await baseFs.createDirectory(Path.fromString('/base'));
+
+      aliasFs = AliasFileSystem(
+        fileSystem: baseFs,
+        subDirectory: Path.fromString('/base'),
+      );
+    });
+
+    testFilesystem(() => aliasFs);
   });
 }
