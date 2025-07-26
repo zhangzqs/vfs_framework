@@ -46,16 +46,7 @@ class WebDavFileSystem extends IFileSystem with FileSystemHelper {
   Stream<FileStatus> list(
     Path path, {
     ListOptions options = const ListOptions(),
-  }) async* {
-    final list = await client.readDir(path.toString());
-    for (final item in list) {
-      // yield FileStatus(
-      //   isDirectory: item.isDir ?? false,
-      //   path: item.path != null ? Path.fromString(item.path!) : null,
-      //   size: item.size,
-      // );
-    }
-  }
+  }) async* {}
 
   @override
   Stream<List<int>> openRead(

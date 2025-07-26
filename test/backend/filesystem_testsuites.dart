@@ -456,7 +456,11 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       await fs.writeBytes(file1, Uint8List.fromList([1, 2, 3]));
       await fs.writeBytes(file2, Uint8List.fromList([4, 5, 6]));
 
-      await fs.copy(sourceDir, destDir, options: const CopyOptions(recursive: true));
+      await fs.copy(
+        sourceDir,
+        destDir,
+        options: const CopyOptions(recursive: true),
+      );
       final copiedFile1 = Path.fromString('/dest_dir/file1.txt');
       final copiedFile2 = Path.fromString('/dest_dir/file2.txt');
 
@@ -712,7 +716,11 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       final file2 = Path.fromString('/source_dir/file2.txt');
       await fs.writeBytes(file1, Uint8List.fromList([1, 2, 3]));
       await fs.writeBytes(file2, Uint8List.fromList([4, 5, 6]));
-      await fs.move(sourceDir, destDir, options: const MoveOptions(recursive: true));
+      await fs.move(
+        sourceDir,
+        destDir,
+        options: const MoveOptions(recursive: true),
+      );
       final movedFile1 = Path.fromString('/dest_dir/file1.txt');
       final movedFile2 = Path.fromString('/dest_dir/file2.txt');
       expect(await fs.exists(movedFile1), isTrue);
