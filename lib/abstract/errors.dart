@@ -11,6 +11,7 @@ enum FileSystemErrorCode {
   alreadyExists, // 目标实体已存在
   notEmptyDirectory, // 目录不为空
   recursiveNotSpecified, // 递归操作未指定
+  readOnly, // 文件系统为只读
 }
 
 /// 统一文件系统异常
@@ -75,6 +76,11 @@ class FileSystemException implements Exception {
         message: 'Recursive option not specified, omitting directory $path',
         path: path,
       );
+  factory FileSystemException.readOnly(Path path) => FileSystemException(
+    code: FileSystemErrorCode.readOnly,
+    message: 'File system is read-only',
+    path: path,
+  );
   @override
   String toString() => 'FileSystemException($code, $path): $message';
 }
