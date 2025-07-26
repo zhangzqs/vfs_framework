@@ -8,4 +8,5 @@ final defaultProviders = <ComponentProvider>[
   AliasFileSystemProvider(),
   UnionFileSystemProvider(),
   HttpServerProvider(),
+  BlockCacheFileSystemProvider(),
 ];

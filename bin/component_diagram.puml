@@ -8,20 +8,21 @@ skinparam componentBorderColor DarkBlue
 skinparam componentFontSize 12
 skinparam componentStyle uml2
 
-component [local_fs_c] as local_fs_c
-note top of local_fs_c
-  **Type**: backend.local
-  --
-  **Config**:
-  • baseDir: C:/
-end note
-
 component [local_fs_d] as local_fs_d
 note top of local_fs_d
   **Type**: backend.local
   --
   **Config**:
   • baseDir: D:/
+end note
+
+component [cache_fs_backend] as cache_fs_backend
+note top of cache_fs_backend
+  **Type**: backend.alias
+  --
+  **Config**:
+  • backend: local_fs_d
+  • subDirectory: /cache
 end note
 
 component [local_fs_z] as local_fs_z
@@ -32,12 +33,23 @@ note top of local_fs_z
   • baseDir: Z:/
 end note
 
-component [union_fs_c_d] as union_fs_c_d
-note top of union_fs_c_d
+component [cache_fs] as cache_fs
+note top of cache_fs
+  **Type**: backend.block_cache
+  --
+  **Config**:
+  • originBackend: local_fs_z
+  • cacheBackend: cache_fs_backend
+  • cacheDir: /
+  • blockSize: 4194304
+end note
+
+component [union_fs] as union_fs
+note top of union_fs
   **Type**: backend.union
   --
   **Config**:
-  • items: [3 items]
+  • items: [4 items]
 end note
 
 component [http_server] as http_server
@@ -45,13 +57,17 @@ note top of http_server
   **Type**: frontend.http
   --
   **Config**:
-  • backend: union_fs_c_d
+  • backend: union_fs
 end note
 
 ' Dependencies
-local_fs_c --> union_fs_c_d : uses
-local_fs_d --> union_fs_c_d : uses
-local_fs_z --> union_fs_c_d : uses
-union_fs_c_d --> http_server : uses
+local_fs_d --> cache_fs_backend : uses
+local_fs_z --> cache_fs : uses
+cache_fs_backend --> cache_fs : uses
+local_fs_d --> union_fs : uses
+local_fs_z --> union_fs : uses
+cache_fs_backend --> union_fs : uses
+cache_fs --> union_fs : uses
+union_fs --> http_server : uses
 
 @enduml
