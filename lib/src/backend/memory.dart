@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:vfs_framework/helper/filesystem_helper.dart';
-import 'package:vfs_framework/helper/mime_type_helper.dart';
+import 'package:vfs_framework/src/helper/filesystem_helper.dart';
+import 'package:vfs_framework/src/helper/mime_type_helper.dart';
 
 import '../abstract/index.dart';
 

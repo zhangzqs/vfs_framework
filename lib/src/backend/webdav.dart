@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:webdav_client/webdav_client.dart' as webdav;
-import 'package:vfs_framework/abstract/index.dart';
-import 'package:vfs_framework/helper/filesystem_helper.dart';
+import 'package:vfs_framework/src/abstract/index.dart';
+import 'package:vfs_framework/src/helper/filesystem_helper.dart';
 
 class WebDavFileSystem extends IFileSystem with FileSystemHelper {
   final webdav.Client client;

@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io' as io;
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart';
-import 'package:vfs_framework/abstract/index.dart';
+import 'package:vfs_framework/src/abstract/index.dart';
 
 class HttpServer {
   final IFileSystem fs;

@@ -3,8 +3,8 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import '../abstract/index.dart';
-import 'package:vfs_framework/helper/filesystem_helper.dart';
-import 'package:vfs_framework/helper/mime_type_helper.dart';
+import 'package:vfs_framework/src/helper/filesystem_helper.dart';
+import 'package:vfs_framework/src/helper/mime_type_helper.dart';
 
 class LocalFileSystem extends IFileSystem with FileSystemHelper {
   /// 本地文件系统的基础目录

@@ -3,7 +3,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:vfs_framework/vfs_framework.dart';
-import 'package:vfs_framework/helper/filesystem_helper.dart';
+import 'package:vfs_framework/src/helper/filesystem_helper.dart';
 
 /// 用于把另一个文件系统里的某个子文件夹作为一个新文件系统
 class AliasFileSystem extends IFileSystem with FileSystemHelper {
