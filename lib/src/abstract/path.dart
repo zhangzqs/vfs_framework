@@ -1,7 +1,6 @@
 import 'package:equatable/equatable.dart';
 
 final class Path extends Equatable {
-
   Path(this.segments) {
     // 禁止出现.和..
     if (segments.any((segment) => segment == '.' || segment == '..')) {

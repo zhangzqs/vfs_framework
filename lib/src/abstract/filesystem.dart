@@ -14,13 +14,11 @@ enum WriteMode {
 }
 
 final class WriteOptions {
-
   const WriteOptions({this.mode = WriteMode.write});
   final WriteMode mode;
 }
 
 final class ReadOptions {
-
   const ReadOptions({this.start, this.end});
   final int? start;
   final int? end;
@@ -42,13 +40,11 @@ final class CopyOptions {
 }
 
 final class DeleteOptions {
-
   const DeleteOptions({this.recursive = false});
   final bool recursive;
 }
 
 final class CreateDirectoryOptions {
-
   const CreateDirectoryOptions({this.createParents = false});
   final bool createParents;
 }
