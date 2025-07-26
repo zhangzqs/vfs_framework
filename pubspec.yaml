@@ -13,6 +13,7 @@ dependencies:
   webdav_client: ^1.2.2
   shelf: ^1.4.2
   yaml: ^3.1.3
+  pumli: ^0.1.5
 
 dev_dependencies:
   lints: ^5.0.0
