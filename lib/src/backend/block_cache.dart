@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:logging/logging.dart';
+
 import '../abstract/index.dart';
 import '../helper/filesystem_helper.dart';
 
@@ -12,7 +14,9 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
     required this.cacheFileSystem,
     required this.cacheDir,
     this.blockSize = 4096,
-  });
+  }) : logger = Logger('BlockCacheFileSystem');
+  @override
+  final Logger logger;
   final IFileSystem originFileSystem;
   final IFileSystem cacheFileSystem;
   final Path cacheDir;

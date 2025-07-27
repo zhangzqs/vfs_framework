@@ -1,12 +1,17 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:logging/logging.dart';
 import 'package:vfs_framework/src/abstract/index.dart';
 import 'package:vfs_framework/src/helper/filesystem_helper.dart';
 import 'package:webdav_client/webdav_client.dart' as webdav;
 
 class WebDavFileSystem extends IFileSystem with FileSystemHelper {
-  WebDavFileSystem({required this.client});
+  WebDavFileSystem({required this.client})
+    : logger = Logger('WebDavFileSystem');
+
+  @override
+  final Logger logger;
   final webdav.Client client;
 
   @override

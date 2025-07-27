@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:logging/logging.dart';
+
 import '../abstract/index.dart';
 
 class MetadataCacheFileSystem extends IFileSystem {
@@ -9,7 +11,10 @@ class MetadataCacheFileSystem extends IFileSystem {
     required this.originFileSystem,
     required this.cacheFileSystem,
     required this.cacheDir,
-  });
+  }) : logger = Logger('MetadataCacheFileSystem');
+
+  @override
+  final Logger logger;
   final IFileSystem originFileSystem;
   final IFileSystem cacheFileSystem;
   final Path cacheDir;

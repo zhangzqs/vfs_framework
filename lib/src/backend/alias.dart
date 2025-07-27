@@ -1,13 +1,18 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:logging/logging.dart';
+
 import '../abstract/index.dart';
 
 /// 用于把另一个文件系统里的某个子文件夹作为一个新文件系统
 class AliasFileSystem extends IFileSystem {
   AliasFileSystem({required this.fileSystem, Path? subDirectory})
-    : subDirectory = subDirectory ?? Path.rootPath;
+    : subDirectory = subDirectory ?? Path.rootPath,
+      logger = Logger('AliasFileSystem');
 
+  @override
+  final Logger logger;
   final IFileSystem fileSystem;
   final Path subDirectory;
 

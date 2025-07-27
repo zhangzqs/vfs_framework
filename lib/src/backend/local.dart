@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
 import '../abstract/index.dart';
 import '../helper/filesystem_helper.dart';
@@ -8,7 +9,11 @@ import '../helper/mime_type_helper.dart';
 
 class LocalFileSystem extends IFileSystem with FileSystemHelper {
   LocalFileSystem({Directory? baseDir})
-    : baseDir = baseDir ?? Directory.current;
+    : baseDir = baseDir ?? Directory.current,
+      logger = Logger('LocalFileSystem');
+
+  @override
+  final Logger logger;
 
   /// 本地文件系统的基础目录
   final Directory baseDir;

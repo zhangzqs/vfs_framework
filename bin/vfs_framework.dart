@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:logging/logging.dart';
 import 'package:pumli/pumli.dart';
 import 'package:vfs_framework/src/blueprint/index.dart';
 import 'package:yaml/yaml.dart';
@@ -162,6 +164,21 @@ Future<void> generateComponentDiagram(
 }
 
 Future<void> main(List<String> arguments) async {
+  Logger.root.level = Level.ALL; // defaults to Level.INFO
+  Logger.root.onRecord.listen((record) {
+    print(
+      jsonEncode({
+        'logger': record.loggerName,
+        'level': record.level.name,
+        'time': record.time.toIso8601String(),
+        'message': record.message,
+        if (record.error != null) 'error': record.error,
+        if (record.stackTrace != null)
+          'stackTrace': record.stackTrace.toString(),
+      }),
+    );
+  });
+
   // 检查配置文件
   const configFile = 'config.yaml';
   if (!File(configFile).existsSync()) {

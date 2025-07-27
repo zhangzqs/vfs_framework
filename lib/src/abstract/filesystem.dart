@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:logging/logging.dart';
+
 import 'path.dart';
 import 'status.dart';
 
@@ -60,6 +62,8 @@ final class ExistsOptions {
 }
 
 abstract class IFileSystem {
+  Logger get logger;
+
   /// 写入
   Future<StreamSink<List<int>>> openWrite(
     Path path, {
