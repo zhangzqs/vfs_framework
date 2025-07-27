@@ -1,9 +1,9 @@
 import 'package:equatable/equatable.dart';
 import 'package:json_annotation/json_annotation.dart';
 
-import '../abstract/index.dart';
+import '../../abstract/index.dart';
 
-part 'metadata_cache_models.g.dart';
+part 'model.g.dart';
 
 const _currentVersion = '1.0';
 

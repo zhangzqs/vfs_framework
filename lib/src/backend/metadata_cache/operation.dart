@@ -5,8 +5,8 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:logging/logging.dart';
 
-import '../abstract/index.dart';
-import 'metadata_cache_models.dart';
+import '../../abstract/index.dart';
+import 'model.dart';
 
 /// 元数据缓存操作类
 /// 负责具体的缓存读写、hash计算、目录管理等操作
@@ -40,7 +40,7 @@ class MetadataCacheOperation {
   }
 
   /// 在cacheDir中，针对srcPath构建分层缓存目录路径，三层目录结构，有利于文件系统查询性能
-  Path _buildCacheMetadataFile1(Path path) {
+  Path _buildCacheMetadataFile(Path path) {
     final hash = _generatePathHash(path);
     // 使用前3位作为第一层目录 (每个level1下4096种可能)
     final level1 = hash.substring(0, 3);
@@ -56,11 +56,6 @@ class MetadataCacheOperation {
       '${hierarchicalPath.toString()}',
     );
     return hierarchicalPath;
-  }
-
-  Path _buildCacheMetadataFile(Path path) {
-    // 测试使用一个可读性较强的路径
-    return cacheDir.join('${path.toString().replaceAll('/', '_')}.json');
   }
 
   /// 读取缓存的元数据

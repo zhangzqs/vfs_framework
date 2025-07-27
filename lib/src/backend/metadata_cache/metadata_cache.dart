@@ -3,9 +3,9 @@ import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
 
-import '../abstract/index.dart';
-import '../helper/filesystem_helper.dart';
-import 'metadata_cache_operation.dart';
+import '../../abstract/index.dart';
+import '../../helper/filesystem_helper.dart';
+import 'operation.dart';
 
 class MetadataCacheFileSystem extends IFileSystem with FileSystemHelper {
   MetadataCacheFileSystem({

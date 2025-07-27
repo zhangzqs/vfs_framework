@@ -1,5 +1,3 @@
-import 'dart:io' as io;
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:test/test.dart';
 import 'package:vfs_framework/vfs_framework.dart';
@@ -13,9 +11,7 @@ void main() {
 
   setUp(() async {
     originFs = MemoryFileSystem();
-    cacheFs = LocalFileSystem(
-      baseDir: Directory.systemTemp.createTempSync('cache_'),
-    );
+    cacheFs = MemoryFileSystem();
     metadataCacheFs = MetadataCacheFileSystem(
       originFileSystem: originFs,
       cacheFileSystem: cacheFs,
