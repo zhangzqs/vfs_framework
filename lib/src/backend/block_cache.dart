@@ -14,8 +14,8 @@ part 'block_cache.g.dart';
 /// 块缓存元数据类
 /// 用于存储缓存文件的相关信息，包括原文件路径、大小、块信息等
 @JsonSerializable()
-class CacheMetadata extends Equatable {
-  const CacheMetadata({
+class _CacheMetadata extends Equatable {
+  const _CacheMetadata({
     required this.filePath,
     required this.fileSize,
     required this.blockSize,
@@ -24,7 +24,7 @@ class CacheMetadata extends Equatable {
     required this.lastModified,
     this.version = '1.0',
   });
-  factory CacheMetadata.fromJson(Map<String, dynamic> json) =>
+  factory _CacheMetadata.fromJson(Map<String, dynamic> json) =>
       _$CacheMetadataFromJson(json);
 
   /// 原文件路径
@@ -53,13 +53,13 @@ class CacheMetadata extends Equatable {
   Map<String, dynamic> toJson() => _$CacheMetadataToJson(this);
 
   /// 创建一个新的CacheMetadata，添加一个新的缓存块
-  CacheMetadata addCachedBlock(int blockIdx) {
+  _CacheMetadata addCachedBlock(int blockIdx) {
     final updatedBlocks = Set<int>.from(cachedBlocks);
     if (!updatedBlocks.contains(blockIdx)) {
       updatedBlocks.add(blockIdx);
     }
 
-    return CacheMetadata(
+    return _CacheMetadata(
       filePath: filePath,
       fileSize: fileSize,
       blockSize: blockSize,
@@ -441,7 +441,7 @@ class _CacheOperation {
   }
 
   /// 读取缓存元数据
-  Future<CacheMetadata?> _readCacheMetadata(Path metaPath) async {
+  Future<_CacheMetadata?> _readCacheMetadata(Path metaPath) async {
     try {
       if (!await cacheFileSystem.exists(metaPath)) {
         return null;
@@ -454,7 +454,7 @@ class _CacheOperation {
 
       final metaJson =
           json.decode(utf8.decode(metaBytes)) as Map<String, dynamic>;
-      return CacheMetadata.fromJson(metaJson);
+      return _CacheMetadata.fromJson(metaJson);
     } catch (e) {
       logger.warning(
         'Failed to read cache metadata from ${metaPath.toString()}: $e',
@@ -483,7 +483,7 @@ class _CacheOperation {
       final fileSize = originalStat.size ?? 0;
       final totalBlocks = (fileSize + blockSize - 1) ~/ blockSize; // 向上取整
 
-      CacheMetadata metadata;
+      _CacheMetadata metadata;
 
       // 如果元数据文件已存在，先读取现有数据
       final existingMetadata = await _readCacheMetadata(metaPath);
@@ -491,7 +491,7 @@ class _CacheOperation {
         metadata = existingMetadata.addCachedBlock(blockIdx);
       } else {
         // 创建新的元数据
-        metadata = CacheMetadata(
+        metadata = _CacheMetadata(
           filePath: originalPath.toString(),
           fileSize: fileSize,
           blockSize: blockSize,
