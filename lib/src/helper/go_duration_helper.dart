@@ -42,7 +42,9 @@ class GoDurationStringConverter implements JsonConverter<Duration, String> {
           case 'm':
             return Duration(microseconds: (value * 60 * 1000 * 1000).round());
           case 'h':
-            return Duration(microseconds: (value * 60 * 60 * 1000 * 1000).round());
+            return Duration(
+              microseconds: (value * 60 * 60 * 1000 * 1000).round(),
+            );
           default:
             throw FormatException('Invalid duration unit: $unit');
         }
@@ -54,11 +56,14 @@ class GoDurationStringConverter implements JsonConverter<Duration, String> {
       ).allMatches(json).toList();
       if (parts.isNotEmpty) {
         // 检查是否整个字符串都被匹配（避免如"1h2x3s"这样的无效格式）
-        final matchedLength = parts.fold<int>(0, (sum, match) => sum + match.group(0)!.length);
+        final matchedLength = parts.fold<int>(
+          0,
+          (sum, match) => sum + match.group(0)!.length,
+        );
         if (matchedLength != json.length) {
           throw FormatException('Invalid duration format: $json');
         }
-        
+
         Duration total = Duration.zero;
         for (final part in parts) {
           final valueStr = part.group(1);
@@ -82,10 +87,14 @@ class GoDurationStringConverter implements JsonConverter<Duration, String> {
               total += Duration(microseconds: (value * 1000 * 1000).round());
               break;
             case 'm':
-              total += Duration(microseconds: (value * 60 * 1000 * 1000).round());
+              total += Duration(
+                microseconds: (value * 60 * 1000 * 1000).round(),
+              );
               break;
             case 'h':
-              total += Duration(microseconds: (value * 60 * 60 * 1000 * 1000).round());
+              total += Duration(
+                microseconds: (value * 60 * 60 * 1000 * 1000).round(),
+              );
               break;
             default:
               throw FormatException('Invalid duration unit: $unit');
@@ -106,11 +115,11 @@ class GoDurationStringConverter implements JsonConverter<Duration, String> {
   String toJson(Duration duration) {
     // 转换为 Golang 风格的字符串表示（如 "1h2m3s"）
     if (duration == Duration.zero) return '0s';
-    
+
     // 处理负数
     final isNegative = duration.isNegative;
     final absoluteDuration = duration.abs();
-    
+
     final hours = absoluteDuration.inHours;
     final minutes = absoluteDuration.inMinutes % 60;
     final seconds = absoluteDuration.inSeconds % 60;
@@ -119,7 +128,7 @@ class GoDurationStringConverter implements JsonConverter<Duration, String> {
 
     final buffer = StringBuffer();
     if (isNegative) buffer.write('-');
-    
+
     if (hours != 0) buffer.write('${hours}h');
     if (minutes != 0) buffer.write('${minutes}m');
     if (seconds != 0) buffer.write('${seconds}s');

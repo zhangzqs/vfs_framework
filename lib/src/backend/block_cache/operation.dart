@@ -161,10 +161,10 @@ class CacheOperation {
             logger.finest(
               'Cache hit for ${originalPath.toString()}, block $blockIdx',
             );
-            
+
             // 触发预读
             _triggerReadAhead(originalPath, blockIdx);
-            
+
             return cachedData;
           }
         } else {
@@ -204,10 +204,10 @@ class CacheOperation {
       );
       // 缓存读取失败，回退到原始文件系统
       final blockData = await _readBlockFromOrigin(originalPath, blockIdx);
-      
+
       // 即使出错也尝试触发预读
       _triggerReadAhead(originalPath, blockIdx);
-      
+
       return blockData;
     }
   }
@@ -501,14 +501,15 @@ class CacheOperation {
     }
 
     final pathString = originalPath.toString();
-    
+
     // 更新最后访问的块索引
     final lastBlock = _lastAccessedBlock[pathString];
     _lastAccessedBlock[pathString] = currentBlockIdx;
 
     // 检查是否是顺序访问（预读只对顺序访问有效）
-    final isSequentialAccess = lastBlock == null || 
-        currentBlockIdx == lastBlock + 1 || 
+    final isSequentialAccess =
+        lastBlock == null ||
+        currentBlockIdx == lastBlock + 1 ||
         currentBlockIdx == lastBlock; // 允许重复访问同一块
 
     if (!isSequentialAccess) {
@@ -527,14 +528,14 @@ class CacheOperation {
   void _performReadAhead(Path originalPath, int currentBlockIdx) {
     Future.microtask(() async {
       final pathString = originalPath.toString();
-      
+
       try {
         // 获取文件大小来确定有效的块范围
         final fileStatus = await originFileSystem.stat(originalPath);
         if (fileStatus == null) {
           return;
         }
-        
+
         final fileSize = fileStatus.size ?? 0;
         final maxBlockIdx = (fileSize + blockSize - 1) ~/ blockSize - 1;
 
@@ -548,10 +549,10 @@ class CacheOperation {
 
         // 预读后续的块
         final readAheadTasks = <Future<void>>[];
-        
+
         for (int i = 1; i <= readAheadBlocks; i++) {
           final targetBlockIdx = currentBlockIdx + i;
-          
+
           // 检查块索引是否有效
           if (targetBlockIdx > maxBlockIdx) {
             break;
@@ -570,15 +571,17 @@ class CacheOperation {
 
           // 添加到活跃任务并开始预读
           activeTasks.add(targetBlockIdx);
-          
-          readAheadTasks.add(_readAheadBlock(
-            originalPath,
-            targetBlockIdx,
-            cacheHashDir,
-            cacheBlocksDir,
-            cacheBlockPath,
-            cacheMetaPath,
-          ));
+
+          readAheadTasks.add(
+            _readAheadBlock(
+              originalPath,
+              targetBlockIdx,
+              cacheHashDir,
+              cacheBlocksDir,
+              cacheBlockPath,
+              cacheMetaPath,
+            ),
+          );
         }
 
         // 等待所有预读任务完成（但不阻塞主流程）
@@ -587,18 +590,16 @@ class CacheOperation {
             'Starting read-ahead for ${originalPath.toString()}: '
             '${readAheadTasks.length} blocks after block $currentBlockIdx',
           );
-          
+
           await Future.wait(readAheadTasks);
-          
+
           logger.finest(
             'Completed read-ahead for ${originalPath.toString()}: '
             '${readAheadTasks.length} blocks',
           );
         }
       } catch (e) {
-        logger.warning(
-          'Read-ahead failed for ${originalPath.toString()}: $e',
-        );
+        logger.warning('Read-ahead failed for ${originalPath.toString()}: $e');
       }
     });
   }
@@ -613,7 +614,7 @@ class CacheOperation {
     Path cacheMetaPath,
   ) async {
     final pathString = originalPath.toString();
-    
+
     try {
       logger.finest(
         'Read-ahead: fetching block $blockIdx for ${originalPath.toString()}',
@@ -659,7 +660,7 @@ class CacheOperation {
     } finally {
       // 从活跃任务集合中移除
       _activeReadAheadTasks[pathString]?.remove(blockIdx);
-      
+
       // 如果没有活跃任务了，清理集合
       if (_activeReadAheadTasks[pathString]?.isEmpty == true) {
         _activeReadAheadTasks.remove(pathString);
@@ -672,9 +673,7 @@ class CacheOperation {
     final pathString = originalPath.toString();
     _activeReadAheadTasks.remove(pathString);
     _lastAccessedBlock.remove(pathString);
-    
-    logger.finest(
-      'Cleaned up read-ahead state for ${originalPath.toString()}',
-    );
+
+    logger.finest('Cleaned up read-ahead state for ${originalPath.toString()}');
   }
 }
