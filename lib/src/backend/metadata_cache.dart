@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:logging/logging.dart';
 
 import '../abstract/index.dart';
@@ -20,29 +21,36 @@ class MetadataCacheFileSystem extends IFileSystem {
   final IFileSystem cacheFileSystem;
   final Path cacheDir;
 
-  /// 生成路径的hash值作为缓存文件名
+  /// 基于SHA256生成文件路径的hash值，16个字符
   String _generatePathHash(Path path) {
+    // hash为长度为16的字符串
     final pathString = path.toString();
     final bytes = utf8.encode(pathString);
+    final digest = sha256.convert(bytes);
 
-    // 使用简单的hash算法
-    var hash = 0;
-    for (final byte in bytes) {
-      hash = ((hash << 5) - hash + byte) & 0xFFFFFFFF;
-    }
-
-    return hash.toRadixString(16).padLeft(8, '0');
+    // 使用SHA-256的前16位作为hash值，大大降低冲突概率
+    final hash = digest.toString().substring(0, 16);
+    logger.finest('Generated hash for ${path.toString()}: $hash');
+    return hash;
   }
 
-  /// 获取缓存文件路径，使用分层结构避免单个目录文件过多
-  Path _getCacheFilePath(Path path) {
+  /// 在cacheDir中，针对srcPath构建分层缓存目录路径，双层目录结构，有利于文件系统查询性能
+  Path _buildCacheHashDir(Path path) {
     final hash = _generatePathHash(path);
-    // 使用hash的前两位作为子目录，分散存储
-    final subDir1 = hash.substring(0, 2);
-    final subDir2 = hash.substring(2, 4);
-    final fileName = '${hash.substring(4)}.json';
+    // 使用前2位作为第一层目录 (每个level1下4096种可能)
+    final level1 = hash.substring(0, 3);
+    // 使用第3-4位作为第二层目录 (每个level2下4096种可能)
+    final level2 = hash.substring(3, 6);
+    // 第三级目录使用剩余的hash值
+    final level3 = hash.substring(6);
+    // 构建分层路径: cacheDir/abc/def/1234ef567890/
+    final hierarchicalPath = cacheDir.join(level1).join(level2).join(level3);
 
-    return cacheDir.join(subDir1).join(subDir2).join(fileName);
+    logger.finest(
+      'Built hierarchical cache path for hash $hash: '
+      '${hierarchicalPath.toString()}',
+    );
+    return hierarchicalPath;
   }
 
   /// 将FileStatus序列化为Map
@@ -68,7 +76,7 @@ class MetadataCacheFileSystem extends IFileSystem {
   /// 读取缓存的元数据
   Future<Map<String, dynamic>?> _readCachedMetadata(Path path) async {
     try {
-      final cacheFilePath = _getCacheFilePath(path);
+      final cacheFilePath = _buildCacheHashDir(path);
 
       if (!await cacheFileSystem.exists(cacheFilePath)) {
         return null;
@@ -88,7 +96,7 @@ class MetadataCacheFileSystem extends IFileSystem {
     Map<String, dynamic> metadata,
   ) async {
     try {
-      final cacheFilePath = _getCacheFilePath(path);
+      final cacheFilePath = _buildCacheHashDir(path);
 
       // 确保缓存目录存在
       final cacheParentDir = cacheFilePath.parent;
@@ -111,7 +119,7 @@ class MetadataCacheFileSystem extends IFileSystem {
   /// 使缓存失效
   Future<void> _invalidateCache(Path path) async {
     try {
-      final cacheFilePath = _getCacheFilePath(path);
+      final cacheFilePath = _buildCacheHashDir(path);
       if (await cacheFileSystem.exists(cacheFilePath)) {
         await cacheFileSystem.delete(cacheFilePath);
       }
