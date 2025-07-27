@@ -1,123 +1,15 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
+
 import 'package:crypto/crypto.dart';
-import 'package:equatable/equatable.dart';
-import 'package:json_annotation/json_annotation.dart';
-
 import 'package:logging/logging.dart';
-import '../abstract/index.dart';
-import '../helper/filesystem_helper.dart';
-part 'block_cache.g.dart';
 
-const _currentVersion = '1.0';
+import '../../abstract/index.dart';
+import 'metadata.dart';
 
-/// 块缓存元数据类
-/// 用于存储缓存文件的相关信息，包括原文件路径、大小、块信息等
-@JsonSerializable()
-class _CacheMetadata extends Equatable {
-  const _CacheMetadata({
-    required this.filePath,
-    required this.fileSize,
-    required this.blockSize,
-    required this.totalBlocks,
-    required this.cachedBlocks,
-    required this.lastModified,
-    this.version = _currentVersion,
-  });
-  factory _CacheMetadata.fromJson(Map<String, dynamic> json) =>
-      _$CacheMetadataFromJson(json);
-
-  /// 原文件路径
-  final String filePath;
-
-  /// 原文件大小（字节）
-  final int fileSize;
-
-  /// 块大小（字节）
-  final int blockSize;
-
-  /// 总块数
-  final int totalBlocks;
-
-  /// 已缓存的块索引列表（有序）
-  final Set<int> cachedBlocks;
-
-  /// 最后修改时间戳
-  final DateTime lastModified;
-
-  /// 元数据版本
-  final String version;
-
-  /// 从JSON创建CacheMetadata实例
-
-  Map<String, dynamic> toJson() => _$CacheMetadataToJson(this);
-
-  /// 创建一个新的CacheMetadata，添加一个新的缓存块
-  _CacheMetadata addCachedBlock(int blockIdx) {
-    final updatedBlocks = Set<int>.from(cachedBlocks);
-    if (!updatedBlocks.contains(blockIdx)) {
-      updatedBlocks.add(blockIdx);
-    }
-
-    return _CacheMetadata(
-      filePath: filePath,
-      fileSize: fileSize,
-      blockSize: blockSize,
-      totalBlocks: totalBlocks,
-      cachedBlocks: updatedBlocks,
-      lastModified: DateTime.now(),
-      version: version,
-    );
-  }
-
-  /// 检查指定块是否已缓存
-  bool isBlockCached(int blockIdx) {
-    return cachedBlocks.contains(blockIdx);
-  }
-
-  /// 获取缓存完成度（0.0 - 1.0）
-  double get cacheCompleteness {
-    if (totalBlocks == 0) return 1.0;
-    return cachedBlocks.length / totalBlocks;
-  }
-
-  /// 获取缓存大小统计信息
-  String get cacheStats {
-    return '${cachedBlocks.length}/$totalBlocks blocks cached '
-        '(${(cacheCompleteness * 100).toStringAsFixed(1)}%)';
-  }
-
-  /// 验证元数据是否与当前文件信息匹配
-  bool isValid({
-    required String expectedPath,
-    required int expectedFileSize,
-    required int expectedBlockSize,
-  }) {
-    return filePath == expectedPath &&
-        fileSize == expectedFileSize &&
-        blockSize == expectedBlockSize &&
-        version == _currentVersion;
-  }
-
-  @override
-  String toString() => toJson().toString();
-
-  @override
-  List<Object?> get props => [
-    filePath,
-    fileSize,
-    blockSize,
-    totalBlocks,
-    cachedBlocks,
-    lastModified,
-    version,
-  ];
-}
-
-class _CacheOperation {
-  _CacheOperation({
+class CacheOperation {
+  CacheOperation({
     required this.logger,
     required this.originFileSystem,
     required this.cacheFileSystem,
@@ -444,7 +336,7 @@ class _CacheOperation {
   }
 
   /// 读取缓存元数据
-  Future<_CacheMetadata?> _readCacheMetadata(Path metaPath) async {
+  Future<CacheMetadata?> _readCacheMetadata(Path metaPath) async {
     try {
       if (!await cacheFileSystem.exists(metaPath)) {
         return null;
@@ -457,7 +349,7 @@ class _CacheOperation {
 
       final metaJson =
           json.decode(utf8.decode(metaBytes)) as Map<String, dynamic>;
-      return _CacheMetadata.fromJson(metaJson);
+      return CacheMetadata.fromJson(metaJson);
     } catch (e) {
       logger.warning(
         'Failed to read cache metadata from ${metaPath.toString()}: $e',
@@ -486,7 +378,7 @@ class _CacheOperation {
       final fileSize = originalStat.size ?? 0;
       final totalBlocks = (fileSize + blockSize - 1) ~/ blockSize; // 向上取整
 
-      _CacheMetadata metadata;
+      CacheMetadata metadata;
 
       // 如果元数据文件已存在，先读取现有数据
       final existingMetadata = await _readCacheMetadata(metaPath);
@@ -494,7 +386,7 @@ class _CacheOperation {
         metadata = existingMetadata.addCachedBlock(blockIdx);
       } else {
         // 创建新的元数据
-        metadata = _CacheMetadata(
+        metadata = CacheMetadata(
           filePath: originalPath.toString(),
           fileSize: fileSize,
           blockSize: blockSize,
@@ -594,173 +486,5 @@ class _CacheOperation {
       // 静默处理清理错误，不影响主要功能
       logger.finest('Failed to cleanup empty parent dirs: $e');
     }
-  }
-}
-
-/// 装饰器Sink，在写入完成后执行回调
-class _CacheInvalidatingSink implements StreamSink<List<int>> {
-  _CacheInvalidatingSink({
-    required this.originalSink,
-    required this.onClose,
-    required this.logger,
-  });
-
-  final StreamSink<List<int>> originalSink;
-  final Future<void> Function() onClose;
-  final Logger logger;
-
-  @override
-  void add(List<int> data) {
-    originalSink.add(data);
-  }
-
-  @override
-  void addError(Object error, [StackTrace? stackTrace]) {
-    originalSink.addError(error, stackTrace);
-  }
-
-  @override
-  Future<void> addStream(Stream<List<int>> stream) {
-    return originalSink.addStream(stream);
-  }
-
-  @override
-  Future<void> close() async {
-    try {
-      // 先关闭原始Sink
-      await originalSink.close();
-      // 然后执行缓存失效回调
-      await onClose();
-      logger.finest('Write stream closed and cache invalidated');
-    } catch (e) {
-      logger.warning('Error during stream close: $e');
-      rethrow;
-    }
-  }
-
-  @override
-  Future<void> get done => originalSink.done;
-}
-
-class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
-  BlockCacheFileSystem({
-    required this.originFileSystem,
-    required IFileSystem cacheFileSystem,
-    required Path cacheDir,
-    int blockSize = 1024 * 1024, // 默认块大小为1MB
-    String loggerName = 'BlockCacheFileSystem',
-  }) : logger = Logger(loggerName) {
-    logger.info(
-      'BlockCacheFileSystem initialized with blockSize: $blockSize bytes, '
-      'cacheDir: ${cacheDir.toString()}, using hierarchical cache structure',
-    );
-    _cacheOperation = _CacheOperation(
-      logger: logger,
-      originFileSystem: originFileSystem,
-      cacheFileSystem: cacheFileSystem,
-      cacheDir: cacheDir,
-      blockSize: blockSize,
-    );
-  }
-
-  @override
-  final Logger logger;
-  final IFileSystem originFileSystem;
-  late final _CacheOperation _cacheOperation;
-
-  @override
-  Future<void> copy(
-    Path source,
-    Path destination, {
-    CopyOptions options = const CopyOptions(),
-  }) async {
-    logger.fine('Copying ${source.toString()} to ${destination.toString()}');
-    await originFileSystem.copy(source, destination, options: options);
-    // 目标文件的缓存可能需要失效
-    await _cacheOperation.invalidateCache(destination);
-  }
-
-  @override
-  Future<void> createDirectory(
-    Path path, {
-    CreateDirectoryOptions options = const CreateDirectoryOptions(),
-  }) {
-    return originFileSystem.createDirectory(path, options: options);
-  }
-
-  @override
-  Future<void> delete(
-    Path path, {
-    DeleteOptions options = const DeleteOptions(),
-  }) async {
-    logger.fine('Deleting ${path.toString()}');
-    await originFileSystem.delete(path, options: options);
-    // 删除文件后使其缓存失效
-    await _cacheOperation.invalidateCache(path);
-  }
-
-  @override
-  Future<bool> exists(
-    Path path, {
-    ExistsOptions options = const ExistsOptions(),
-  }) {
-    return originFileSystem.exists(path, options: options);
-  }
-
-  @override
-  Stream<FileStatus> list(
-    Path path, {
-    ListOptions options = const ListOptions(),
-  }) {
-    return originFileSystem.list(path, options: options);
-  }
-
-  @override
-  Future<void> move(
-    Path source,
-    Path destination, {
-    MoveOptions options = const MoveOptions(),
-  }) async {
-    logger.fine('Moving ${source.toString()} to ${destination.toString()}');
-    await originFileSystem.move(source, destination, options: options);
-    // 移动操作会影响源文件和目标文件的缓存
-    await _cacheOperation.invalidateCache(source);
-    await _cacheOperation.invalidateCache(destination);
-  }
-
-  @override
-  Future<FileStatus?> stat(
-    Path path, {
-    StatOptions options = const StatOptions(),
-  }) {
-    return originFileSystem.stat(path, options: options);
-  }
-
-  @override
-  Future<StreamSink<List<int>>> openWrite(
-    Path path, {
-    WriteOptions options = const WriteOptions(),
-  }) async {
-    logger.fine('Opening write stream for ${path.toString()}');
-    final originalSink = await originFileSystem.openWrite(
-      path,
-      options: options,
-    );
-
-    // 创建一个装饰器Sink，在写入完成后刷新缓存
-    return _CacheInvalidatingSink(
-      originalSink: originalSink,
-      onClose: () => _cacheOperation.invalidateCache(path),
-      logger: logger,
-    );
-  }
-
-  @override
-  Stream<List<int>> openRead(
-    Path path, {
-    ReadOptions options = const ReadOptions(),
-  }) {
-    logger.fine('Opening read stream for ${path.toString()} with block cache');
-    return _cacheOperation.openReadWithBlockCache(path, options);
   }
 }

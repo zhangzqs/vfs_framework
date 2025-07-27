@@ -1,13 +1,13 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'block_cache.dart';
+part of 'metadata.dart';
 
 // **************************************************************************
 // JsonSerializableGenerator
 // **************************************************************************
 
-_CacheMetadata _$CacheMetadataFromJson(Map<String, dynamic> json) =>
-    _CacheMetadata(
+CacheMetadata _$CacheMetadataFromJson(Map<String, dynamic> json) =>
+    CacheMetadata(
       filePath: json['filePath'] as String,
       fileSize: (json['fileSize'] as num).toInt(),
       blockSize: (json['blockSize'] as num).toInt(),
@@ -16,10 +16,10 @@ _CacheMetadata _$CacheMetadataFromJson(Map<String, dynamic> json) =>
           .map((e) => (e as num).toInt())
           .toSet(),
       lastModified: DateTime.parse(json['lastModified'] as String),
-      version: json['version'] as String? ?? '1.0',
+      version: json['version'] as String? ?? _currentVersion,
     );
 
-Map<String, dynamic> _$CacheMetadataToJson(_CacheMetadata instance) =>
+Map<String, dynamic> _$CacheMetadataToJson(CacheMetadata instance) =>
     <String, dynamic>{
       'filePath': instance.filePath,
       'fileSize': instance.fileSize,
