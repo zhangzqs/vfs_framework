@@ -7,7 +7,7 @@ import '../../engine/index.dart';
 
 part 'metadata_cache.g.dart';
 
-@JsonSerializable()
+@JsonSerializable(disallowUnrecognizedKeys: true)
 class _Config {
   _Config({
     required this.originBackend,

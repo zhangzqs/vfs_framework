@@ -6,7 +6,7 @@ import '../../engine/core.dart';
 
 part 'union.g.dart';
 
-@JsonSerializable()
+@JsonSerializable(disallowUnrecognizedKeys: true)
 class _ItemConfig {
   _ItemConfig({
     required this.backend,

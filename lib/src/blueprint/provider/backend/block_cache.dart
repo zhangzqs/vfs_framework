@@ -5,7 +5,7 @@ import '../../index.dart';
 
 part 'block_cache.g.dart';
 
-@JsonSerializable()
+@JsonSerializable(disallowUnrecognizedKeys: true)
 class _Config {
   _Config({
     required this.originBackend,

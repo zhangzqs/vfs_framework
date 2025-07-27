@@ -24,6 +24,8 @@
     cacheBackend: local_fs_d
     cacheDir: "/block_cache"
     blockSize: 4194304 # 4MB
+    readAheadBlocks: 2 # Read ahead 2 blocks
+    enableReadAhead: true # Enable read-ahead caching
 
 - name: union_fs
   type: backend.union

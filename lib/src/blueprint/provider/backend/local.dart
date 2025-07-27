@@ -8,7 +8,7 @@ import '../../engine/core.dart';
 
 part 'local.g.dart';
 
-@JsonSerializable()
+@JsonSerializable(disallowUnrecognizedKeys: true)
 class _Config {
   _Config({required this.baseDir});
 

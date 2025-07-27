@@ -6,12 +6,18 @@ part of 'union.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_ItemConfig _$ItemConfigFromJson(Map<String, dynamic> json) => _ItemConfig(
-  backend: json['backend'] as String,
-  mountPath: json['mountPath'] as String,
-  readOnly: json['readOnly'] as bool? ?? false,
-  priority: (json['priority'] as num?)?.toInt() ?? 0,
-);
+_ItemConfig _$ItemConfigFromJson(Map<String, dynamic> json) {
+  $checkKeys(
+    json,
+    allowedKeys: const ['backend', 'mountPath', 'readOnly', 'priority'],
+  );
+  return _ItemConfig(
+    backend: json['backend'] as String,
+    mountPath: json['mountPath'] as String,
+    readOnly: json['readOnly'] as bool? ?? false,
+    priority: (json['priority'] as num?)?.toInt() ?? 0,
+  );
+}
 
 Map<String, dynamic> _$ItemConfigToJson(_ItemConfig instance) =>
     <String, dynamic>{
