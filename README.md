@@ -10,10 +10,8 @@ VFS Framework 是一个受 [rclone](https://rclone.org/) 和 [Alist](https://ali
 
 - 🔌 **插件化架构**：支持多种存储后端和前端
 - 🌐 **统一 API**：为所有存储后端提供一致的文件系统接口
-- 🔀 **联合文件系统**：支持将多个文件系统合并为一个逻辑视图
-- 🎯 **别名文件系统**：支持将子目录作为独立的文件系统根目录
-- 🚀 **高性能**：异步操作和流式处理
-- 🔧 **蓝图编排**：声明式组件配置和依赖管理
+- 🚀 **高性能**：全异步操作和流式处理接口
+- 🔧 **蓝图编排**：声明式的复杂文件系统编排能力
 
 ## 📁 支持的文件系统后端
 
@@ -21,18 +19,16 @@ VFS Framework 是一个受 [rclone](https://rclone.org/) 和 [Alist](https://ali
 
 - **LocalFileSystem** - 本地文件系统
 - **MemoryFileSystem** - 内存文件系统（用于测试和缓存）
-- **WebDAVFileSystem** - WebDAV 协议支持
-- **UnionFileSystem** - 联合文件系统（合并多个后端）
-- **AliasFileSystem** - 别名文件系统（子目录映射）
+- **UnionFileSystem** - Union 文件系统（用于合并挂载多个文件系统后端）
+- **AliasFileSystem** - Alias 文件系统（用于将某个文件系统的子目录映射成一个新的文件系统）
+- **BlockCacheFileSystem** - 块缓存文件系统（用于分块缓存文件内容，提升访问速度）
+- **MetadataCacheFileSystem** - 元数据缓存文件系统（用于缓存文件元数据，减少文件系统后端请求）
 
 ### 计划支持
 
+- WebDAV
+- SMB
 - S3 兼容存储
-- FTP/SFTP
-- Google Drive
-- OneDrive
-- 阿里云 OSS
-- 腾讯云 COS
 
 ## 🌐 支持的前端接口
 
@@ -46,9 +42,6 @@ VFS Framework 是一个受 [rclone](https://rclone.org/) 和 [Alist](https://ali
 ### 计划中的前端
 
 - WebDAV 服务器
-- FTP 服务器
-- gRPC API
-- 命令行工具
 
 ## ⚙️ 蓝图编排引擎
 
