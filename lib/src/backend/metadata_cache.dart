@@ -11,7 +11,8 @@ class MetadataCacheFileSystem extends IFileSystem {
     required this.originFileSystem,
     required this.cacheFileSystem,
     required this.cacheDir,
-  }) : logger = Logger('MetadataCacheFileSystem');
+    String loggerName = 'MetadataCacheFileSystem',
+  }) : logger = Logger(loggerName);
 
   @override
   final Logger logger;

@@ -43,8 +43,10 @@ class _Config {
 
   Map<String, dynamic> toJson() => _$ConfigToJson(this);
 
-  List<UnionFileSystemItem> build(Context ctx) {
-    return items.map((item) => item.build(ctx)).toList();
+  UnionFileSystem build(Context ctx) {
+    return UnionFileSystem(
+      items: items.map((item) => item.build(ctx)).toList(),
+    );
   }
 }
 
@@ -58,6 +60,6 @@ class UnionFileSystemProvider extends ComponentProvider<IFileSystem> {
     Map<String, dynamic> config,
   ) async {
     final cfg = _Config.fromJson(config);
-    return UnionFileSystem(cfg.build(ctx));
+    return cfg.build(ctx);
   }
 }

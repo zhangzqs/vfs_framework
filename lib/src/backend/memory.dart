@@ -8,8 +8,7 @@ import '../helper/filesystem_helper.dart';
 import '../helper/mime_type_helper.dart';
 
 class _MemoryFileEntity {
-  _MemoryFileEntity(this.status, {Map<String, _MemoryFileEntity>? children})
-    : children = children;
+  _MemoryFileEntity(this.status, {this.children});
 
   String get name => status.path.segments.last;
   FileStatus status;
@@ -52,7 +51,8 @@ class _MemoryFileEntity {
 }
 
 class MemoryFileSystem extends IFileSystem with FileSystemHelper {
-  MemoryFileSystem() : logger = Logger('MemoryFileSystem');
+  MemoryFileSystem({String loggerName = 'MemoryFileSystem'})
+    : logger = Logger(loggerName);
 
   @override
   final Logger logger;

@@ -27,13 +27,15 @@ void main() {
       );
 
       // 创建union文件系统
-      unionFs = UnionFileSystem([
-        UnionFileSystemItem(fileSystem: memoryFs1, mountPath: Path.rootPath),
-        UnionFileSystemItem(
-          fileSystem: memoryFs2,
-          mountPath: Path.fromString('/fs2'),
-        ),
-      ]);
+      unionFs = UnionFileSystem(
+        items: [
+          UnionFileSystemItem(fileSystem: memoryFs1, mountPath: Path.rootPath),
+          UnionFileSystemItem(
+            fileSystem: memoryFs2,
+            mountPath: Path.fromString('/fs2'),
+          ),
+        ],
+      );
     });
 
     test('should check file existence correctly', () async {
@@ -77,13 +79,15 @@ void main() {
     });
 
     test('should handle read-only filesystems', () async {
-      final readOnlyUnionFs = UnionFileSystem([
-        UnionFileSystemItem(
-          fileSystem: memoryFs1,
-          mountPath: Path.rootPath,
-          readOnly: true,
-        ),
-      ]);
+      final readOnlyUnionFs = UnionFileSystem(
+        items: [
+          UnionFileSystemItem(
+            fileSystem: memoryFs1,
+            mountPath: Path.rootPath,
+            readOnly: true,
+          ),
+        ],
+      );
 
       expect(
         () => readOnlyUnionFs.writeBytes(
@@ -109,18 +113,20 @@ void main() {
       );
 
       // 用户文件系统有更高优先级
-      final priorityUnionFs = UnionFileSystem([
-        UnionFileSystemItem(
-          fileSystem: userFs,
-          mountPath: Path.rootPath,
-          priority: 100,
-        ),
-        UnionFileSystemItem(
-          fileSystem: systemFs,
-          mountPath: Path.rootPath,
-          priority: 50,
-        ),
-      ]);
+      final priorityUnionFs = UnionFileSystem(
+        items: [
+          UnionFileSystemItem(
+            fileSystem: userFs,
+            mountPath: Path.rootPath,
+            priority: 100,
+          ),
+          UnionFileSystemItem(
+            fileSystem: systemFs,
+            mountPath: Path.rootPath,
+            priority: 50,
+          ),
+        ],
+      );
 
       // 用户文件应该覆盖系统文件
       final content = await priorityUnionFs.readAsBytes(
@@ -139,18 +145,20 @@ void main() {
         Uint8List.fromList('temp session data'.codeUnits),
       );
 
-      final mountUnionFs = UnionFileSystem([
-        UnionFileSystemItem(
-          fileSystem: rootFs,
-          mountPath: Path.rootPath,
-          priority: 100,
-        ),
-        UnionFileSystemItem(
-          fileSystem: tmpFs,
-          mountPath: Path.fromString('/tmp'),
-          priority: 50,
-        ),
-      ]);
+      final mountUnionFs = UnionFileSystem(
+        items: [
+          UnionFileSystemItem(
+            fileSystem: rootFs,
+            mountPath: Path.rootPath,
+            priority: 100,
+          ),
+          UnionFileSystemItem(
+            fileSystem: tmpFs,
+            mountPath: Path.fromString('/tmp'),
+            priority: 50,
+          ),
+        ],
+      );
 
       // 读取挂载点的文件
       final content = await mountUnionFs.readAsBytes(
@@ -182,18 +190,20 @@ void main() {
         Uint8List.fromList('source content'.codeUnits),
       );
 
-      final copyUnionFs = UnionFileSystem([
-        UnionFileSystemItem(
-          fileSystem: sourceFs,
-          mountPath: Path.fromString('/src'),
-          priority: 100,
-        ),
-        UnionFileSystemItem(
-          fileSystem: destFs,
-          mountPath: Path.fromString('/dest'),
-          priority: 50,
-        ),
-      ]);
+      final copyUnionFs = UnionFileSystem(
+        items: [
+          UnionFileSystemItem(
+            fileSystem: sourceFs,
+            mountPath: Path.fromString('/src'),
+            priority: 100,
+          ),
+          UnionFileSystemItem(
+            fileSystem: destFs,
+            mountPath: Path.fromString('/dest'),
+            priority: 50,
+          ),
+        ],
+      );
 
       // 跨文件系统拷贝
       await copyUnionFs.copy(
@@ -229,18 +239,20 @@ void main() {
         Uint8List.fromList('move content'.codeUnits),
       );
 
-      final moveUnionFs = UnionFileSystem([
-        UnionFileSystemItem(
-          fileSystem: sourceFs,
-          mountPath: Path.fromString('/src'),
-          priority: 100,
-        ),
-        UnionFileSystemItem(
-          fileSystem: destFs,
-          mountPath: Path.fromString('/dest'),
-          priority: 50,
-        ),
-      ]);
+      final moveUnionFs = UnionFileSystem(
+        items: [
+          UnionFileSystemItem(
+            fileSystem: sourceFs,
+            mountPath: Path.fromString('/src'),
+            priority: 100,
+          ),
+          UnionFileSystemItem(
+            fileSystem: destFs,
+            mountPath: Path.fromString('/dest'),
+            priority: 50,
+          ),
+        ],
+      );
 
       // 跨文件系统移动
       await moveUnionFs.move(
@@ -280,18 +292,20 @@ void main() {
         Uint8List.fromList('from fs2'.codeUnits),
       );
 
-      final dirUnionFs = UnionFileSystem([
-        UnionFileSystemItem(
-          fileSystem: fs1,
-          mountPath: Path.rootPath,
-          priority: 100,
-        ),
-        UnionFileSystemItem(
-          fileSystem: fs2,
-          mountPath: Path.fromString('/fs2'),
-          priority: 50,
-        ),
-      ]);
+      final dirUnionFs = UnionFileSystem(
+        items: [
+          UnionFileSystemItem(
+            fileSystem: fs1,
+            mountPath: Path.rootPath,
+            priority: 100,
+          ),
+          UnionFileSystemItem(
+            fileSystem: fs2,
+            mountPath: Path.fromString('/fs2'),
+            priority: 50,
+          ),
+        ],
+      );
 
       // 列出目录内容应该合并来自不同文件系统的文件
       final sharedFiles = <String>[];
@@ -321,13 +335,15 @@ void main() {
         Uint8List.fromList('original content'.codeUnits),
       );
 
-      final overwriteUnionFs = UnionFileSystem([
-        UnionFileSystemItem(
-          fileSystem: fs,
-          mountPath: Path.rootPath,
-          priority: 100,
-        ),
-      ]);
+      final overwriteUnionFs = UnionFileSystem(
+        items: [
+          UnionFileSystemItem(
+            fileSystem: fs,
+            mountPath: Path.rootPath,
+            priority: 100,
+          ),
+        ],
+      );
 
       // 覆盖写入
       await overwriteUnionFs.writeBytes(
@@ -366,23 +382,25 @@ void main() {
         Uint8List.fromList('temp cache'.codeUnits),
       );
 
-      final complexUnionFs = UnionFileSystem([
-        UnionFileSystemItem(
-          fileSystem: userFs,
-          mountPath: Path.rootPath,
-          priority: 100,
-        ),
-        UnionFileSystemItem(
-          fileSystem: systemFs,
-          mountPath: Path.rootPath,
-          priority: 50,
-        ),
-        UnionFileSystemItem(
-          fileSystem: tempFs,
-          mountPath: Path.fromString('/tmp'),
-          priority: 10,
-        ),
-      ]);
+      final complexUnionFs = UnionFileSystem(
+        items: [
+          UnionFileSystemItem(
+            fileSystem: userFs,
+            mountPath: Path.rootPath,
+            priority: 100,
+          ),
+          UnionFileSystemItem(
+            fileSystem: systemFs,
+            mountPath: Path.rootPath,
+            priority: 50,
+          ),
+          UnionFileSystemItem(
+            fileSystem: tempFs,
+            mountPath: Path.fromString('/tmp'),
+            priority: 10,
+          ),
+        ],
+      );
 
       // 验证各层文件都可访问
       expect(

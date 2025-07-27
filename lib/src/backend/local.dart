@@ -8,9 +8,9 @@ import '../helper/filesystem_helper.dart';
 import '../helper/mime_type_helper.dart';
 
 class LocalFileSystem extends IFileSystem with FileSystemHelper {
-  LocalFileSystem({Directory? baseDir})
+  LocalFileSystem({Directory? baseDir, String loggerName = 'LocalFileSystem'})
     : baseDir = baseDir ?? Directory.current,
-      logger = Logger('LocalFileSystem');
+      logger = Logger(loggerName);
 
   @override
   final Logger logger;

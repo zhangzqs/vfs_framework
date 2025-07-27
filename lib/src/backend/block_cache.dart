@@ -13,8 +13,9 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
     required this.originFileSystem,
     required this.cacheFileSystem,
     required this.cacheDir,
-    this.blockSize = 4096,
-  }) : logger = Logger('BlockCacheFileSystem');
+    this.blockSize = 1024 * 1024, // 默认块大小为1MB
+    String loggerName = 'BlockCacheFileSystem',
+  }) : logger = Logger(loggerName);
   @override
   final Logger logger;
   final IFileSystem originFileSystem;

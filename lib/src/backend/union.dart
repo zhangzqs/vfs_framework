@@ -20,10 +20,12 @@ class UnionFileSystemItem {
 }
 
 class UnionFileSystem extends IFileSystem {
-  UnionFileSystem(List<UnionFileSystemItem> items)
-    : _items = List.from(items)
-        ..sort((a, b) => b.priority.compareTo(a.priority)),
-      logger = Logger('UnionFileSystem');
+  UnionFileSystem({
+    required List<UnionFileSystemItem> items,
+    String loggerName = 'UnionFileSystem',
+  }) : _items = List.from(items)
+         ..sort((a, b) => b.priority.compareTo(a.priority)),
+       logger = Logger(loggerName);
 
   @override
   final Logger logger;

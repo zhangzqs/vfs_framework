@@ -8,11 +8,13 @@ Future<void> main() async {
   final fs1 = LocalFileSystem(baseDir: Directory('C:/'));
   final fs2 = LocalFileSystem(baseDir: Directory('D:/'));
   final fs3 = LocalFileSystem(baseDir: Directory('Z:/'));
-  final fs = UnionFileSystem([
-    UnionFileSystemItem(fileSystem: fs1, mountPath: Path.fromString('/C')),
-    UnionFileSystemItem(fileSystem: fs2, mountPath: Path.fromString('/D')),
-    UnionFileSystemItem(fileSystem: fs3, mountPath: Path.fromString('/Z')),
-  ]);
+  final fs = UnionFileSystem(
+    items: [
+      UnionFileSystemItem(fileSystem: fs1, mountPath: Path.fromString('/C')),
+      UnionFileSystemItem(fileSystem: fs2, mountPath: Path.fromString('/D')),
+      UnionFileSystemItem(fileSystem: fs3, mountPath: Path.fromString('/Z')),
+    ],
+  );
 
   // 创建HTTP服务器前端
   final httpServer = HttpServer(fs);
