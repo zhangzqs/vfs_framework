@@ -24,7 +24,8 @@ class _Config {
     if (originBackend.isEmpty || cacheBackend.isEmpty) {
       throw BlueprintException(
         context: ctx,
-        'Both upstream and cache backends must be specified for block cache file system',
+        'Both upstream and cache backends must be specified for '
+        'block cache file system',
       );
     }
     final upstream = ctx.mustGetComponentByName<IFileSystem>(originBackend);

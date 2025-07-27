@@ -1,7 +1,6 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import '../../../../vfs_framework.dart';
-import '../../../backend/block_cache.dart';
 import '../../index.dart';
 
 part 'block_cache.g.dart';
@@ -26,7 +25,8 @@ class _Config {
     if (originBackend.isEmpty || cacheBackend.isEmpty) {
       throw BlueprintException(
         context: ctx,
-        'Both upstream and cache backends must be specified for block cache file system',
+        'Both upstream and cache backends must be specified for '
+        'block cache file system',
       );
     }
     final upstream = ctx.mustGetComponentByName<IFileSystem>(originBackend);
