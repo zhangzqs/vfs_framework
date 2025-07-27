@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:logging/logging.dart';
 import 'package:pumli/pumli.dart';
 import 'package:vfs_framework/src/blueprint/index.dart';
 import 'package:yaml/yaml.dart';

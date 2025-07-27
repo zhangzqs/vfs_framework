@@ -651,11 +651,13 @@ class CacheOperation {
       await _updateCacheMetadata(cacheMetaPath, originalPath, blockIdx);
 
       logger.finest(
-        'Read-ahead: successfully cached block $blockIdx for ${originalPath.toString()}',
+        'Read-ahead: successfully cached block $blockIdx '
+        'for ${originalPath.toString()}',
       );
     } catch (e) {
       logger.warning(
-        'Read-ahead: failed to cache block $blockIdx for ${originalPath.toString()}: $e',
+        'Read-ahead: failed to cache block $blockIdx '
+        'for ${originalPath.toString()}: $e',
       );
     } finally {
       // 从活跃任务集合中移除
