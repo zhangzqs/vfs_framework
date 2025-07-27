@@ -3,23 +3,24 @@
   config:
     baseDir: "D:/"
 
-- name: cache_fs_backend
-  type: backend.alias
-  config:
-    backend: local_fs_d
-    subDirectory: /cache
-
 - name: local_fs_z
   type: backend.local
   config:
     baseDir: "Z:/"
 
-- name: cache_fs
-  type: backend.block_cache
+- name: metadata_cache_fs
+  type: backend.metadata_cache
   config:
     originBackend: local_fs_z
-    cacheBackend: cache_fs_backend
-    cacheDir: "/"
+    cacheBackend: local_fs_d
+    cacheDir: "/metadata_cache"
+
+- name: block_cache_fs
+  type: backend.block_cache
+  config:
+    originBackend: metadata_cache_fs
+    cacheBackend: local_fs_d
+    cacheDir: "/block_cache"
     blockSize: 4194304 # 4MB
 
 - name: union_fs
@@ -30,10 +31,10 @@
         mountPath: /local_fs_d
       - backend: local_fs_z
         mountPath: /local_fs_z
-      - backend: cache_fs_backend
-        mountPath: /cache_fs_backend
-      - backend: cache_fs
-        mountPath: /cache_fs
+      - backend: metadata_cache_fs
+        mountPath: /metadata_cache_fs
+      - backend: block_cache_fs
+        mountPath: /block_cache_fs
 
 - name: http_server
   type: frontend.http

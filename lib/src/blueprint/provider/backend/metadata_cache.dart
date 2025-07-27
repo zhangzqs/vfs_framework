@@ -1,10 +1,10 @@
 import 'package:json_annotation/json_annotation.dart';
+import 'package:vfs_framework/src/backend/index.dart';
 
-import '../../../../vfs_framework.dart';
-import '../../../backend/block_cache.dart';
-import '../../index.dart';
+import '../../../abstract/index.dart';
+import '../../engine/index.dart';
 
-part 'block_cache.g.dart';
+part 'metadata_cache.g.dart';
 
 @JsonSerializable()
 class _Config {
@@ -12,17 +12,15 @@ class _Config {
     required this.originBackend,
     required this.cacheBackend,
     required this.cacheDir,
-    this.blockSize = 4 * 1024 * 1024,
   });
   factory _Config.fromJson(Map<String, dynamic> json) => _$ConfigFromJson(json);
   final String originBackend;
   final String cacheBackend;
   final String cacheDir;
-  final int blockSize;
 
   Map<String, dynamic> toJson() => _$ConfigToJson(this);
 
-  BlockCacheFileSystem build(Context ctx) {
+  MetadataCacheFileSystem build(Context ctx) {
     if (originBackend.isEmpty || cacheBackend.isEmpty) {
       throw BlueprintException(
         context: ctx,
@@ -31,18 +29,17 @@ class _Config {
     }
     final upstream = ctx.mustGetComponentByName<IFileSystem>(originBackend);
     final cache = ctx.mustGetComponentByName<IFileSystem>(cacheBackend);
-    return BlockCacheFileSystem(
+    return MetadataCacheFileSystem(
       originFileSystem: upstream,
       cacheFileSystem: cache,
       cacheDir: Path.fromString(cacheDir),
-      blockSize: blockSize,
     );
   }
 }
 
-class BlockCacheFileSystemProvider extends ComponentProvider<IFileSystem> {
+class MetadataCacheFileSystemProvider extends ComponentProvider<IFileSystem> {
   @override
-  String get type => 'backend.block_cache';
+  String get type => 'backend.metadata_cache';
 
   @override
   Future<IFileSystem> createComponent(
@@ -50,7 +47,6 @@ class BlockCacheFileSystemProvider extends ComponentProvider<IFileSystem> {
     Map<String, dynamic> config,
   ) async {
     final cfg = _Config.fromJson(config);
-
     return cfg.build(ctx);
   }
 }

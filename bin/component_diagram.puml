@@ -16,15 +16,6 @@ note top of local_fs_d
   • baseDir: D:/
 end note
 
-component [cache_fs_backend] as cache_fs_backend
-note top of cache_fs_backend
-  **Type**: backend.alias
-  --
-  **Config**:
-  • backend: local_fs_d
-  • subDirectory: /cache
-end note
-
 component [local_fs_z] as local_fs_z
 note top of local_fs_z
   **Type**: backend.local
@@ -33,14 +24,24 @@ note top of local_fs_z
   • baseDir: Z:/
 end note
 
-component [cache_fs] as cache_fs
-note top of cache_fs
-  **Type**: backend.block_cache
+component [metadata_cache_fs] as metadata_cache_fs
+note top of metadata_cache_fs
+  **Type**: backend.metadata_cache
   --
   **Config**:
   • originBackend: local_fs_z
-  • cacheBackend: cache_fs_backend
-  • cacheDir: /
+  • cacheBackend: local_fs_d
+  • cacheDir: /metadata_cache
+end note
+
+component [block_cache_fs] as block_cache_fs
+note top of block_cache_fs
+  **Type**: backend.block_cache
+  --
+  **Config**:
+  • originBackend: metadata_cache_fs
+  • cacheBackend: local_fs_d
+  • cacheDir: /block_cache
   • blockSize: 4194304
 end note
 
@@ -61,13 +62,14 @@ note top of http_server
 end note
 
 ' Dependencies
-local_fs_d --> cache_fs_backend : uses
-local_fs_z --> cache_fs : uses
-cache_fs_backend --> cache_fs : uses
+local_fs_z --> metadata_cache_fs : uses
+local_fs_d --> metadata_cache_fs : uses
+metadata_cache_fs --> block_cache_fs : uses
+local_fs_d --> block_cache_fs : uses
 local_fs_d --> union_fs : uses
 local_fs_z --> union_fs : uses
-cache_fs_backend --> union_fs : uses
-cache_fs --> union_fs : uses
+metadata_cache_fs --> union_fs : uses
+block_cache_fs --> union_fs : uses
 union_fs --> http_server : uses
 
 @enduml

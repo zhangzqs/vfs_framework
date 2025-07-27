@@ -9,4 +9,5 @@ final defaultProviders = <ComponentProvider>[
   UnionFileSystemProvider(),
   HttpServerProvider(),
   BlockCacheFileSystemProvider(),
+  MetadataCacheFileSystemProvider(),
 ];

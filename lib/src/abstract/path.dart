@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:json_annotation/json_annotation.dart';
 
 final class Path extends Equatable {
   Path(this.segments) {
@@ -56,4 +57,18 @@ final class Path extends Equatable {
 
   @override
   List<Object?> get props => [segments];
+}
+
+class PathJsonConverter implements JsonConverter<Path, String> {
+  const PathJsonConverter();
+
+  @override
+  Path fromJson(String json) {
+    return Path.fromString(json);
+  }
+
+  @override
+  String toJson(Path path) {
+    return path.toString();
+  }
 }
