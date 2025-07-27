@@ -15,12 +15,20 @@ class CacheOperation {
     required this.cacheFileSystem,
     required this.cacheDir,
     required this.blockSize,
+    this.readAheadBlocks = 2, // 默认预读2个块
+    this.enableReadAhead = true, // 默认启用预读
   });
   final Logger logger;
   final IFileSystem originFileSystem;
   final IFileSystem cacheFileSystem;
   final Path cacheDir;
   final int blockSize;
+  final int readAheadBlocks;
+  final bool enableReadAhead;
+
+  // 预读队列管理
+  final Map<String, Set<int>> _activeReadAheadTasks = {}; // 记录正在进行的预读任务
+  final Map<String, int> _lastAccessedBlock = {}; // 记录每个文件最后访问的块索引
 
   /// 基于SHA256生成文件路径的hash值，16个字符
   String _generatePathHash(Path path) {
@@ -129,7 +137,7 @@ class CacheOperation {
     logger.finest('Completed block-cached read for ${path.toString()}');
   }
 
-  /// 获取指定块的数据（带缓存）
+  /// 获取指定块的数据（带缓存和预读）
   Future<Uint8List> _getBlockData(
     Path cacheHashDir,
     int blockIdx,
@@ -153,6 +161,10 @@ class CacheOperation {
             logger.finest(
               'Cache hit for ${originalPath.toString()}, block $blockIdx',
             );
+            
+            // 触发预读
+            _triggerReadAhead(originalPath, blockIdx);
+            
             return cachedData;
           }
         } else {
@@ -182,13 +194,21 @@ class CacheOperation {
         blockData,
       );
 
+      // 触发预读
+      _triggerReadAhead(originalPath, blockIdx);
+
       return blockData;
     } catch (e) {
       logger.warning(
         'Error reading block cache for ${originalPath.toString()}: $e',
       );
       // 缓存读取失败，回退到原始文件系统
-      return await _readBlockFromOrigin(originalPath, blockIdx);
+      final blockData = await _readBlockFromOrigin(originalPath, blockIdx);
+      
+      // 即使出错也尝试触发预读
+      _triggerReadAhead(originalPath, blockIdx);
+      
+      return blockData;
     }
   }
 
@@ -411,6 +431,9 @@ class CacheOperation {
         'cache dir: ${cacheHashDir.toString()}',
       );
 
+      // 清理预读状态
+      _cleanupReadAheadState(path);
+
       // 检查缓存目录是否存在
       if (await cacheFileSystem.exists(cacheHashDir)) {
         // 删除整个hash目录（包含blocks子目录和meta.json文件）
@@ -469,5 +492,189 @@ class CacheOperation {
       // 静默处理清理错误，不影响主要功能
       logger.finest('Failed to cleanup empty parent dirs: $e');
     }
+  }
+
+  /// 触发预读操作
+  void _triggerReadAhead(Path originalPath, int currentBlockIdx) {
+    if (!enableReadAhead || readAheadBlocks <= 0) {
+      return;
+    }
+
+    final pathString = originalPath.toString();
+    
+    // 更新最后访问的块索引
+    final lastBlock = _lastAccessedBlock[pathString];
+    _lastAccessedBlock[pathString] = currentBlockIdx;
+
+    // 检查是否是顺序访问（预读只对顺序访问有效）
+    final isSequentialAccess = lastBlock == null || 
+        currentBlockIdx == lastBlock + 1 || 
+        currentBlockIdx == lastBlock; // 允许重复访问同一块
+
+    if (!isSequentialAccess) {
+      logger.finest(
+        'Non-sequential access detected for ${originalPath.toString()}: '
+        'last=$lastBlock, current=$currentBlockIdx, skipping read-ahead',
+      );
+      return;
+    }
+
+    // 异步执行预读
+    _performReadAhead(originalPath, currentBlockIdx);
+  }
+
+  /// 执行预读操作
+  void _performReadAhead(Path originalPath, int currentBlockIdx) {
+    Future.microtask(() async {
+      final pathString = originalPath.toString();
+      
+      try {
+        // 获取文件大小来确定有效的块范围
+        final fileStatus = await originFileSystem.stat(originalPath);
+        if (fileStatus == null) {
+          return;
+        }
+        
+        final fileSize = fileStatus.size ?? 0;
+        final maxBlockIdx = (fileSize + blockSize - 1) ~/ blockSize - 1;
+
+        // 初始化活跃任务集合
+        _activeReadAheadTasks[pathString] ??= <int>{};
+        final activeTasks = _activeReadAheadTasks[pathString]!;
+
+        final cacheHashDir = _buildCacheHashDir(originalPath);
+        final cacheBlocksDir = cacheHashDir.join('blocks');
+        final cacheMetaPath = cacheHashDir.join('meta.json');
+
+        // 预读后续的块
+        final readAheadTasks = <Future<void>>[];
+        
+        for (int i = 1; i <= readAheadBlocks; i++) {
+          final targetBlockIdx = currentBlockIdx + i;
+          
+          // 检查块索引是否有效
+          if (targetBlockIdx > maxBlockIdx) {
+            break;
+          }
+
+          // 检查是否已经在预读队列中
+          if (activeTasks.contains(targetBlockIdx)) {
+            continue;
+          }
+
+          // 检查缓存是否已存在
+          final cacheBlockPath = cacheBlocksDir.join(targetBlockIdx.toString());
+          if (await cacheFileSystem.exists(cacheBlockPath)) {
+            continue;
+          }
+
+          // 添加到活跃任务并开始预读
+          activeTasks.add(targetBlockIdx);
+          
+          readAheadTasks.add(_readAheadBlock(
+            originalPath,
+            targetBlockIdx,
+            cacheHashDir,
+            cacheBlocksDir,
+            cacheBlockPath,
+            cacheMetaPath,
+          ));
+        }
+
+        // 等待所有预读任务完成（但不阻塞主流程）
+        if (readAheadTasks.isNotEmpty) {
+          logger.finest(
+            'Starting read-ahead for ${originalPath.toString()}: '
+            '${readAheadTasks.length} blocks after block $currentBlockIdx',
+          );
+          
+          await Future.wait(readAheadTasks);
+          
+          logger.finest(
+            'Completed read-ahead for ${originalPath.toString()}: '
+            '${readAheadTasks.length} blocks',
+          );
+        }
+      } catch (e) {
+        logger.warning(
+          'Read-ahead failed for ${originalPath.toString()}: $e',
+        );
+      }
+    });
+  }
+
+  /// 预读单个块
+  Future<void> _readAheadBlock(
+    Path originalPath,
+    int blockIdx,
+    Path cacheHashDir,
+    Path cacheBlocksDir,
+    Path cacheBlockPath,
+    Path cacheMetaPath,
+  ) async {
+    final pathString = originalPath.toString();
+    
+    try {
+      logger.finest(
+        'Read-ahead: fetching block $blockIdx for ${originalPath.toString()}',
+      );
+
+      // 从原始文件系统读取块数据
+      final blockData = await _readBlockFromOrigin(originalPath, blockIdx);
+
+      // 确保缓存目录结构存在
+      if (!await cacheFileSystem.exists(cacheHashDir)) {
+        await cacheFileSystem.createDirectory(
+          cacheHashDir,
+          options: const CreateDirectoryOptions(createParents: true),
+        );
+      }
+
+      if (!await cacheFileSystem.exists(cacheBlocksDir)) {
+        await cacheFileSystem.createDirectory(
+          cacheBlocksDir,
+          options: const CreateDirectoryOptions(createParents: true),
+        );
+      }
+
+      // 写入块数据到缓存
+      final sink = await cacheFileSystem.openWrite(
+        cacheBlockPath,
+        options: const WriteOptions(mode: WriteMode.overwrite),
+      );
+
+      sink.add(blockData);
+      await sink.close();
+
+      // 更新元数据
+      await _updateCacheMetadata(cacheMetaPath, originalPath, blockIdx);
+
+      logger.finest(
+        'Read-ahead: successfully cached block $blockIdx for ${originalPath.toString()}',
+      );
+    } catch (e) {
+      logger.warning(
+        'Read-ahead: failed to cache block $blockIdx for ${originalPath.toString()}: $e',
+      );
+    } finally {
+      // 从活跃任务集合中移除
+      _activeReadAheadTasks[pathString]?.remove(blockIdx);
+      
+      // 如果没有活跃任务了，清理集合
+      if (_activeReadAheadTasks[pathString]?.isEmpty == true) {
+        _activeReadAheadTasks.remove(pathString);
+      }
+    }
+  }
+
+  /// 清理预读状态（当文件缓存失效时调用）
+  void _cleanupReadAheadState(Path originalPath) {
+    final pathString = originalPath.toString();
+    _activeReadAheadTasks.remove(pathString);
+    _lastAccessedBlock.remove(pathString);
+    
+    logger.finest(
+      'Cleaned up read-ahead state for ${originalPath.toString()}',
+    );
   }
 }

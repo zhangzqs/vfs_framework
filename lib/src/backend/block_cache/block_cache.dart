@@ -56,10 +56,13 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
     required IFileSystem cacheFileSystem,
     required Path cacheDir,
     int blockSize = 1024 * 1024, // 默认块大小为1MB
+    int readAheadBlocks = 2, // 预读
+    bool enableReadAhead = true, // 默认启用预读
     String loggerName = 'BlockCacheFileSystem',
   }) : logger = Logger(loggerName) {
     logger.info(
       'BlockCacheFileSystem initialized with blockSize: $blockSize bytes, '
+      'readAheadBlocks: $readAheadBlocks, enableReadAhead: $enableReadAhead, '
       'cacheDir: ${cacheDir.toString()}, using hierarchical cache structure',
     );
     _cacheOperation = CacheOperation(
@@ -68,6 +71,8 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
       cacheFileSystem: cacheFileSystem,
       cacheDir: cacheDir,
       blockSize: blockSize,
+      readAheadBlocks: readAheadBlocks,
+      enableReadAhead: enableReadAhead,
     );
   }
 

@@ -12,12 +12,16 @@ class _Config {
     required this.cacheBackend,
     required this.cacheDir,
     this.blockSize = 1024 * 1024,
+    this.readAheadBlocks = 2,
+    this.enableReadAhead = true,
   });
   factory _Config.fromJson(Map<String, dynamic> json) => _$ConfigFromJson(json);
   final String originBackend;
   final String cacheBackend;
   final String cacheDir;
   final int blockSize;
+  final int readAheadBlocks;
+  final bool enableReadAhead;
 
   Map<String, dynamic> toJson() => _$ConfigToJson(this);
 
@@ -36,6 +40,8 @@ class _Config {
       cacheFileSystem: cache,
       cacheDir: Path.fromString(cacheDir),
       blockSize: blockSize,
+      readAheadBlocks: readAheadBlocks,
+      enableReadAhead: enableReadAhead,
     );
   }
 }

@@ -44,7 +44,7 @@ note top of block_cache_fs
   • originBackend: metadata_cache_fs
   • cacheBackend: local_fs_d
   • cacheDir: /block_cache
-  • blockSize: 41943040
+  • blockSize: 4194304
 end note
 
 component [union_fs] as union_fs

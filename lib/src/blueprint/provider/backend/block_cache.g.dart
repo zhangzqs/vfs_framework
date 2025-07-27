@@ -11,6 +11,8 @@ _Config _$ConfigFromJson(Map<String, dynamic> json) => _Config(
   cacheBackend: json['cacheBackend'] as String,
   cacheDir: json['cacheDir'] as String,
   blockSize: (json['blockSize'] as num?)?.toInt() ?? 1024 * 1024,
+  readAheadBlocks: (json['readAheadBlocks'] as num?)?.toInt() ?? 2,
+  enableReadAhead: json['enableReadAhead'] as bool? ?? true,
 );
 
 Map<String, dynamic> _$ConfigToJson(_Config instance) => <String, dynamic>{
@@ -18,4 +20,6 @@ Map<String, dynamic> _$ConfigToJson(_Config instance) => <String, dynamic>{
   'cacheBackend': instance.cacheBackend,
   'cacheDir': instance.cacheDir,
   'blockSize': instance.blockSize,
+  'readAheadBlocks': instance.readAheadBlocks,
+  'enableReadAhead': instance.enableReadAhead,
 };
