@@ -431,11 +431,12 @@ mixin FileSystemHelper on IFileSystem {
   Future<Uint8List> readAsBytes(
     Path path, {
     ReadOptions options = const ReadOptions(),
-  }) {
-    return openRead(path, options: options).fold<Uint8List>(
-      Uint8List(0),
-      (previous, element) => Uint8List.fromList(previous + element),
-    );
+  }) async {
+    final buffer = BytesBuilder();
+    await for (final chunk in openRead(path, options: options)) {
+      buffer.add(chunk);
+    }
+    return buffer.takeBytes();
   }
 
   /// 覆盖写入全部文件内容
