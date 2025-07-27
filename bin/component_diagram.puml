@@ -32,6 +32,8 @@ note top of metadata_cache_fs
   • originBackend: local_fs_z
   • cacheBackend: local_fs_d
   • cacheDir: /metadata_cache
+  • maxCacheAge: 2400h
+  • ... and 1 more
 end note
 
 component [block_cache_fs] as block_cache_fs
@@ -42,7 +44,7 @@ note top of block_cache_fs
   • originBackend: metadata_cache_fs
   • cacheBackend: local_fs_d
   • cacheDir: /block_cache
-  • blockSize: 4194304
+  • blockSize: 41943040
 end note
 
 component [union_fs] as union_fs

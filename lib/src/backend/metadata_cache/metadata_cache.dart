@@ -12,7 +12,7 @@ class MetadataCacheFileSystem extends IFileSystem with FileSystemHelper {
     required this.originFileSystem,
     required IFileSystem cacheFileSystem,
     required Path cacheDir,
-    Duration maxCacheAge = const Duration(minutes: 30),
+    Duration maxCacheAge = const Duration(days: 7),
     int largeDirectoryThreshold = 1000,
     String loggerName = 'MetadataCacheFileSystem',
   }) : logger = Logger(loggerName) {

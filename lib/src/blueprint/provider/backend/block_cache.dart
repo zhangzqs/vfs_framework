@@ -11,7 +11,7 @@ class _Config {
     required this.originBackend,
     required this.cacheBackend,
     required this.cacheDir,
-    this.blockSize = 4 * 1024 * 1024,
+    this.blockSize = 1024 * 1024,
   });
   factory _Config.fromJson(Map<String, dynamic> json) => _$ConfigFromJson(json);
   final String originBackend;

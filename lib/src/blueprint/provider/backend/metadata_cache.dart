@@ -1,5 +1,6 @@
 import 'package:json_annotation/json_annotation.dart';
 import 'package:vfs_framework/src/backend/index.dart';
+import 'package:vfs_framework/src/helper/go_duration_helper.dart';
 
 import '../../../abstract/index.dart';
 import '../../engine/index.dart';
@@ -12,11 +13,18 @@ class _Config {
     required this.originBackend,
     required this.cacheBackend,
     required this.cacheDir,
+    this.maxCacheAge = const Duration(days: 7),
+    this.largeDirectoryThreshold = 1000,
   });
   factory _Config.fromJson(Map<String, dynamic> json) => _$ConfigFromJson(json);
   final String originBackend;
   final String cacheBackend;
   final String cacheDir;
+
+  @GoDurationStringConverter()
+  final Duration maxCacheAge;
+
+  final int largeDirectoryThreshold;
 
   Map<String, dynamic> toJson() => _$ConfigToJson(this);
 
@@ -34,6 +42,8 @@ class _Config {
       originFileSystem: upstream,
       cacheFileSystem: cache,
       cacheDir: Path.fromString(cacheDir),
+      maxCacheAge: maxCacheAge,
+      largeDirectoryThreshold: largeDirectoryThreshold,
     );
   }
 }

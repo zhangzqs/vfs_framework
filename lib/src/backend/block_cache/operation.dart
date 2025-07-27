@@ -209,26 +209,13 @@ class CacheOperation {
       'Reading block $blockIdx from origin for ${path.toString()}: '
       'range $blockStart-$blockEnd (fileSize: $fileSize)',
     );
-
-    final chunks = <int>[];
-    await for (final chunk in originFileSystem.openRead(
-      path,
-      options: readOptions,
-    )) {
-      chunks.addAll(chunk);
-    }
-
-    return Uint8List.fromList(chunks);
+    return originFileSystem.readAsBytes(path, options: readOptions);
   }
 
   /// 从缓存文件系统读取完整块
   Future<Uint8List?> _readFullBlock(IFileSystem filesystem, Path path) async {
     try {
-      final chunks = <int>[];
-      await for (final chunk in filesystem.openRead(path)) {
-        chunks.addAll(chunk);
-      }
-      return Uint8List.fromList(chunks);
+      return await filesystem.readAsBytes(path);
     } catch (e) {
       logger.warning('Failed to read cached block ${path.toString()}: $e');
       return null; // 读取失败返回null
@@ -342,13 +329,9 @@ class CacheOperation {
         return null;
       }
 
-      final metaBytes = <int>[];
-      await for (final chunk in cacheFileSystem.openRead(metaPath)) {
-        metaBytes.addAll(chunk);
-      }
-
       final metaJson =
-          json.decode(utf8.decode(metaBytes)) as Map<String, dynamic>;
+          json.decode(utf8.decode(await cacheFileSystem.readAsBytes(metaPath)))
+              as Map<String, dynamic>;
       return CacheMetadata.fromJson(metaJson);
     } catch (e) {
       logger.warning(

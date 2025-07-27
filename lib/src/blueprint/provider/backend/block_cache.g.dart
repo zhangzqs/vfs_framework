@@ -10,7 +10,7 @@ _Config _$ConfigFromJson(Map<String, dynamic> json) => _Config(
   originBackend: json['originBackend'] as String,
   cacheBackend: json['cacheBackend'] as String,
   cacheDir: json['cacheDir'] as String,
-  blockSize: (json['blockSize'] as num?)?.toInt() ?? 4 * 1024 * 1024,
+  blockSize: (json['blockSize'] as num?)?.toInt() ?? 1024 * 1024,
 );
 
 Map<String, dynamic> _$ConfigToJson(_Config instance) => <String, dynamic>{

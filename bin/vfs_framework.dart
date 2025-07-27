@@ -163,20 +163,20 @@ Future<void> generateComponentDiagram(
 }
 
 Future<void> main(List<String> arguments) async {
-  Logger.root.level = Level.ALL; // defaults to Level.INFO
-  Logger.root.onRecord.listen((record) {
-    print(
-      jsonEncode({
-        'logger': record.loggerName,
-        'level': record.level.name,
-        'time': record.time.toIso8601String(),
-        'message': record.message,
-        if (record.error != null) 'error': record.error,
-        if (record.stackTrace != null)
-          'stackTrace': record.stackTrace.toString(),
-      }),
-    );
-  });
+  // Logger.root.level = Level.ALL; // defaults to Level.INFO
+  // Logger.root.onRecord.listen((record) {
+  //   print(
+  //     jsonEncode({
+  //       'logger': record.loggerName,
+  //       'level': record.level.name,
+  //       'time': record.time.toIso8601String(),
+  //       'message': record.message,
+  //       if (record.error != null) 'error': record.error,
+  //       if (record.stackTrace != null)
+  //         'stackTrace': record.stackTrace.toString(),
+  //     }),
+  //   );
+  // });
 
   // 检查配置文件
   const configFile = 'config.yaml';
@@ -210,12 +210,14 @@ Future<void> main(List<String> arguments) async {
     });
   }
 
-  // 生成组件依赖图
-  await generateComponentDiagram(
-    cfg,
-    dependencies,
-    plantumlServer: 'http://www.plantuml.com/plantuml',
-    outputFile: 'component_diagram.svg',
+  // 后台异步生成组件依赖图
+  unawaited(
+    generateComponentDiagram(
+      cfg,
+      dependencies,
+      plantumlServer: 'http://www.plantuml.com/plantuml',
+      outputFile: 'component_diagram.svg',
+    ),
   );
 
   // 运行runnable组件
