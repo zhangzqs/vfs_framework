@@ -11,6 +11,8 @@ import '../abstract/index.dart';
 import '../helper/filesystem_helper.dart';
 part 'block_cache.g.dart';
 
+const _currentVersion = '1.0';
+
 /// 块缓存元数据类
 /// 用于存储缓存文件的相关信息，包括原文件路径、大小、块信息等
 @JsonSerializable()
@@ -22,7 +24,7 @@ class _CacheMetadata extends Equatable {
     required this.totalBlocks,
     required this.cachedBlocks,
     required this.lastModified,
-    this.version = '1.0',
+    this.version = _currentVersion,
   });
   factory _CacheMetadata.fromJson(Map<String, dynamic> json) =>
       _$CacheMetadataFromJson(json);
@@ -95,7 +97,8 @@ class _CacheMetadata extends Equatable {
   }) {
     return filePath == expectedPath &&
         fileSize == expectedFileSize &&
-        blockSize == expectedBlockSize;
+        blockSize == expectedBlockSize &&
+        version == _currentVersion;
   }
 
   @override
@@ -164,83 +167,74 @@ class _CacheOperation {
     Path path,
     ReadOptions options,
   ) async* {
-    try {
-      logger.finest('Starting block-cached read for ${path.toString()}');
+    logger.finest('Starting block-cached read for ${path.toString()}');
 
-      // 获取文件状态信息
-      final fileStatus = await originFileSystem.stat(path);
-      if (fileStatus == null || fileStatus.isDirectory) {
-        throw FileSystemException.notAFile(path);
-      }
-
-      final fileSize = fileStatus.size ?? 0;
-      if (fileSize == 0) {
-        logger.finest('File is empty: ${path.toString()}');
-        return; // 空文件直接返回
-      }
-
-      // 计算读取范围
-      final startOffset = options.start ?? 0;
-      final endOffset = options.end ?? fileSize;
-      final readLength = endOffset - startOffset;
-
-      if (readLength <= 0) {
-        logger.warning(
-          'Invalid read range for ${path.toString()}: '
-          'start=$startOffset, end=$endOffset',
-        );
-        return; // 无效的读取范围
-      }
-
-      // 计算涉及的块范围
-      final startBlockIdx = startOffset ~/ blockSize;
-      final endBlockIdx = (endOffset - 1) ~/ blockSize;
-      final totalBlocks = endBlockIdx - startBlockIdx + 1;
-
-      logger.finest(
-        'Reading ${path.toString()}: blocks $startBlockIdx-$endBlockIdx '
-        '($totalBlocks blocks)',
-      );
-
-      // 生成文件路径的hash
-      final cacheHashDir = _buildCacheHashDir(path);
-
-      // 逐块读取数据
-      var currentOffset = startOffset;
-      var remainingBytes = readLength;
-
-      for (var blockIdx = startBlockIdx; blockIdx <= endBlockIdx; blockIdx++) {
-        if (remainingBytes <= 0) break;
-
-        // 获取当前块的数据
-        final blockData = await _getBlockData(cacheHashDir, blockIdx, path);
-
-        // 计算当前块内的偏移量和读取长度
-        final blockStartOffset = blockIdx * blockSize;
-        final offsetInBlock = max(0, currentOffset - blockStartOffset);
-        final bytesToRead = min(blockSize - offsetInBlock, remainingBytes);
-
-        // 提取需要的部分数据
-        final dataToYield = blockData.sublist(
-          offsetInBlock,
-          offsetInBlock + bytesToRead,
-        );
-
-        yield dataToYield;
-
-        currentOffset += bytesToRead;
-        remainingBytes -= bytesToRead;
-      }
-
-      logger.finest('Completed block-cached read for ${path.toString()}');
-    } catch (e) {
-      logger.warning('Block-cached read failed for ${path.toString()}: $e');
-      throw FileSystemException(
-        code: FileSystemErrorCode.ioError,
-        message: '读取文件失败: ${path.toString()}, 错误: $e',
-        path: path,
-      );
+    // 获取文件状态信息
+    final fileStatus = await originFileSystem.stat(path);
+    if (fileStatus == null) {
+      throw FileSystemException.notFound(path);
     }
+    if (fileStatus.isDirectory) {
+      throw FileSystemException.notAFile(path);
+    }
+    final fileSize = fileStatus.size ?? 0;
+    if (fileSize == 0) {
+      logger.finest('File is empty: ${path.toString()}');
+      return; // 空文件直接返回
+    }
+    // 计算读取范围
+    final startOffset = options.start ?? 0;
+    final endOffset = options.end ?? fileSize;
+    final readLength = endOffset - startOffset;
+
+    if (readLength <= 0) {
+      logger.warning(
+        'Invalid read range for ${path.toString()}: '
+        'start=$startOffset, end=$endOffset',
+      );
+      return; // 无效的读取范围
+    }
+    // 计算涉及的块范围
+    final startBlockIdx = startOffset ~/ blockSize;
+    final endBlockIdx = (endOffset - 1) ~/ blockSize;
+    final totalBlocks = endBlockIdx - startBlockIdx + 1;
+
+    logger.finest(
+      'Reading ${path.toString()}: blocks $startBlockIdx-$endBlockIdx '
+      '($totalBlocks blocks)',
+    );
+
+    // 生成文件路径的hash
+    final cacheHashDir = _buildCacheHashDir(path);
+
+    // 逐块读取数据
+    var currentOffset = startOffset;
+    var remainingBytes = readLength;
+
+    for (var blockIdx = startBlockIdx; blockIdx <= endBlockIdx; blockIdx++) {
+      if (remainingBytes <= 0) break;
+
+      // 获取当前块的数据
+      final blockData = await _getBlockData(cacheHashDir, blockIdx, path);
+
+      // 计算当前块内的偏移量和读取长度
+      final blockStartOffset = blockIdx * blockSize;
+      final offsetInBlock = max(0, currentOffset - blockStartOffset);
+      final bytesToRead = min(blockSize - offsetInBlock, remainingBytes);
+
+      // 提取需要的部分数据
+      final dataToYield = blockData.sublist(
+        offsetInBlock,
+        offsetInBlock + bytesToRead,
+      );
+
+      yield dataToYield;
+
+      currentOffset += bytesToRead;
+      remainingBytes -= bytesToRead;
+    }
+
+    logger.finest('Completed block-cached read for ${path.toString()}');
   }
 
   /// 获取指定块的数据（带缓存）
@@ -309,12 +303,21 @@ class _CacheOperation {
   /// 从原始文件系统读取指定块
   Future<Uint8List> _readBlockFromOrigin(Path path, int blockIdx) async {
     final blockStart = blockIdx * blockSize;
-    final readOptions = ReadOptions(
-      start: blockStart,
-      end: blockStart + blockSize,
+
+    // 获取文件大小以确保不会读取超出文件末尾的数据
+    final fileStatus = await originFileSystem.stat(path);
+    final fileSize = fileStatus?.size ?? 0;
+
+    // 计算实际的读取结束位置，不超过文件大小
+    final blockEnd = min(blockStart + blockSize, fileSize);
+
+    final readOptions = ReadOptions(start: blockStart, end: blockEnd);
+
+    logger.finest(
+      'Reading block $blockIdx from origin for ${path.toString()}: '
+      'range $blockStart-$blockEnd (fileSize: $fileSize)',
     );
 
-    logger.finest('Reading block $blockIdx from origin for ${path.toString()}');
     final chunks = <int>[];
     await for (final chunk in originFileSystem.openRead(
       path,
