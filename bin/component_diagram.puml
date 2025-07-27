@@ -33,7 +33,7 @@ note top of metadata_cache_fs
   • cacheBackend: local_fs_d
   • cacheDir: /metadata_cache
   • maxCacheAge: 2400h
-  • ... and 1 more
+  • largeDirectoryThreshold: 1000
 end note
 
 component [block_cache_fs] as block_cache_fs
@@ -45,6 +45,8 @@ note top of block_cache_fs
   • cacheBackend: local_fs_d
   • cacheDir: /block_cache
   • blockSize: 4194304
+  • readAheadBlocks: 2
+  • ... and 1 more
 end note
 
 component [union_fs] as union_fs

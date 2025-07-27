@@ -66,12 +66,13 @@ String generatePlantUMLDiagram(
       final configLines = configStr
           .split('\n')
           .where((line) => line.trim().isNotEmpty);
-      for (final line in configLines.take(4)) {
+      const showMaxLines = 8;
+      for (final line in configLines.take(showMaxLines)) {
         // 显示前4行配置
         buffer.writeln('  • ${line.trim()}');
       }
-      if (configLines.length > 4) {
-        buffer.writeln('  • ... and ${configLines.length - 4} more');
+      if (configLines.length > showMaxLines) {
+        buffer.writeln('  • ... and ${configLines.length - showMaxLines} more');
       }
     }
     buffer.writeln('end note');
