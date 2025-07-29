@@ -175,7 +175,7 @@ class WebDAVDigestAuthInterceptor extends Interceptor {
       if (authInfo.algorithm.toUpperCase() == 'MD5-SESS') {
         cnonce = _generateCnonce();
       }
-      
+
       final ha1 = _calculateHA1(authInfo, cnonce: cnonce);
       response = md5
           .convert(utf8.encode('$ha1:${authInfo.nonce}:$ha2'))
