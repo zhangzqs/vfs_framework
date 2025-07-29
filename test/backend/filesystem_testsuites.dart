@@ -167,9 +167,10 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       await fs.createDirectory(path);
 
       // 确认是个空目录
-      expect(await fs.stat(path), isNotNull);
-      expect((await fs.stat(path))!.isDirectory, isTrue);
-      expect((await fs.stat(path))!.size, isNull);
+      final statRes = (await fs.stat(path))!;
+      expect(statRes, isNotNull);
+      expect(statRes.isDirectory, isTrue);
+      expect(statRes.size, isNull);
       expect(await fs.exists(path), isTrue);
       expect(await fs.list(path).isEmpty, isTrue);
 

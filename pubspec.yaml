@@ -20,6 +20,8 @@ dependencies:
   dio: ^5.8.0+1
   convert: ^3.1.2
   xml: ^6.6.0
+  http_status_code: ^0.0.2
+  xml2json: ^6.2.7
 
 dev_dependencies:
   lints: ^5.0.0
