@@ -285,10 +285,7 @@ class WebDAVResourceType {
 
 Map<String, dynamic> _convertXmlToJson(String xmlString) {
   final transformer = Xml2Json();
-  print("Converting XML to JSON...${xmlString}");
-
   transformer.parse(xmlString);
   final openRallyJson = transformer.toOpenRally();
-  print(openRallyJson);
   return jsonDecode(openRallyJson) as Map<String, dynamic>;
 }
