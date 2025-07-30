@@ -16,12 +16,15 @@ note top of local_fs_d
   • baseDir: D:/
 end note
 
-component [local_fs_z] as local_fs_z
-note top of local_fs_z
-  **Type**: backend.local
+component [webdav_fs] as webdav_fs
+note top of webdav_fs
+  **Type**: backend.webdav
   --
   **Config**:
-  • baseDir: Z:/
+  • baseUrl: http://192.168.242.2:8093
+  • username: admin
+  • password: test
+  • httpOptions: {3 keys}
 end note
 
 component [metadata_cache_fs] as metadata_cache_fs
@@ -29,7 +32,7 @@ note top of metadata_cache_fs
   **Type**: backend.metadata_cache
   --
   **Config**:
-  • originBackend: local_fs_z
+  • originBackend: webdav_fs
   • cacheBackend: local_fs_d
   • cacheDir: /metadata_cache
   • maxCacheAge: 2400h
@@ -66,14 +69,14 @@ note top of http_server
 end note
 
 ' Dependencies
-local_fs_z --> metadata_cache_fs : uses
+webdav_fs --> metadata_cache_fs : uses
 local_fs_d --> metadata_cache_fs : uses
 metadata_cache_fs --> block_cache_fs : uses
 local_fs_d --> block_cache_fs : uses
 local_fs_d --> union_fs : uses
-local_fs_z --> union_fs : uses
 metadata_cache_fs --> union_fs : uses
 block_cache_fs --> union_fs : uses
+webdav_fs --> union_fs : uses
 union_fs --> http_server : uses
 
 @enduml

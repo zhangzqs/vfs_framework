@@ -3,15 +3,21 @@
   config:
     baseDir: "D:/"
 
-- name: local_fs_z
-  type: backend.local
+- name: webdav_fs
+  type: backend.webdav
   config:
-    baseDir: "Z:/"
+    baseUrl: "http://192.168.242.2:8093"
+    username: "admin"
+    password: "test"
+    httpOptions:
+      connectTimeout: 10s
+      receiveTimeout: 10s
+      sendTimeout: 10s
 
 - name: metadata_cache_fs
   type: backend.metadata_cache
   config:
-    originBackend: local_fs_z
+    originBackend: webdav_fs
     cacheBackend: local_fs_d
     cacheDir: "/metadata_cache"
     maxCacheAge: "2400h" # 100 days
@@ -33,12 +39,12 @@
     items:
       - backend: local_fs_d
         mountPath: /local_fs_d
-      - backend: local_fs_z
-        mountPath: /local_fs_z
       - backend: metadata_cache_fs
         mountPath: /metadata_cache_fs
       - backend: block_cache_fs
         mountPath: /block_cache_fs
+      - backend: webdav_fs
+        mountPath: /webdav_fs
 
 - name: http_server
   type: frontend.http
