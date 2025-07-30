@@ -2,8 +2,6 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:test/test.dart';
-import 'package:vfs_framework/src/backend/webdav/auth.dart';
-import 'package:vfs_framework/src/backend/webdav/webdav_dio.dart';
 import 'package:vfs_framework/vfs_framework.dart';
 
 import 'filesystem_testsuites.dart';
