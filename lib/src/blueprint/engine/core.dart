@@ -38,7 +38,7 @@ class ComponentEntry<T extends Object> {
 }
 
 /// 蓝图编排引擎
-class BlueprintEngine {
+class BlueprintEngine implements Closer {
   BlueprintEngine({List<ComponentProvider<Object>> providers = const []})
     : _providerRegistry = Map.fromEntries(
         providers.map((p) => MapEntry(p.type, p)),
@@ -125,15 +125,12 @@ class BlueprintEngine {
     );
   }
 
-  Future<void> runAllRunnableAndWait() async {
+  @override
+  Future<void> close() async {
     await Future.wait(
-      _components.values.where((entry) => entry.provider.isRunnable).map((
-        entry,
-      ) async {
-        final ctx = Context(engine: this, config: entry.config);
-        await entry.provider.runComponent(ctx, entry.component);
-      }),
+      _components.values.whereType<Closer>().map((e) => e.close()),
     );
+    _components.clear();
   }
 }
 
@@ -149,7 +146,10 @@ class Context {
 
 abstract class ComponentProvider<T extends Object> {
   String get type;
-  bool get isRunnable => false;
   Future<T> createComponent(Context ctx, Map<String, dynamic> config);
-  Future<void> runComponent(Context ctx, T component) async {}
+}
+
+abstract class Closer {
+  /// 关闭组件，释放资源
+  Future<void> close();
 }

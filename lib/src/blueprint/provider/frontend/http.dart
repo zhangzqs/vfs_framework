@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:json_annotation/json_annotation.dart';
 import 'package:vfs_framework/src/abstract/index.dart';
 
@@ -35,16 +37,22 @@ class _Config {
   }
 }
 
-class Runner {
-  const Runner({required this.fs, required this.address, required this.port});
+class Runner implements Closer {
+  Runner({required this.fs, required this.address, required this.port})
+    : server = HttpServer(fs);
 
+  final HttpServer server;
   final IFileSystem fs;
   final String address;
   final int port;
 
   Future<void> run() async {
-    final server = HttpServer(fs);
     await server.start(address, port);
+  }
+
+  @override
+  Future<void> close() async {
+    await server.stop();
   }
 }
 
@@ -58,14 +66,8 @@ class HttpServerProvider extends ComponentProvider<Runner> {
     Map<String, dynamic> config,
   ) async {
     final cfg = _Config.fromJson(config);
-    return cfg.build(ctx);
-  }
-
-  @override
-  bool get isRunnable => true;
-
-  @override
-  Future<void> runComponent(Context ctx, Runner component) async {
-    await component.run();
+    final runner = cfg.build(ctx);
+    unawaited(runner.run());
+    return runner;
   }
 }

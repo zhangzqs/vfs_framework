@@ -222,5 +222,21 @@ Future<void> main(List<String> arguments) async {
 
   // 运行runnable组件
   print('🚀 启动所有可运行组件...');
-  await engine.runAllRunnableAndWait();
+  await ProcessSignal.sigint.watch().firstWhere((signal) {
+    final shouldExit = [
+      ProcessSignal.sigint,
+      ProcessSignal.sigterm,
+      ProcessSignal.sigabrt,
+      ProcessSignal.sigsegv,
+    ].contains(signal);
+    if (shouldExit) {
+      print('\n收到终止信号...');
+    }
+    return shouldExit;
+  });
+
+  print('🛑 停止所有组件...');
+  await engine.close();
+  print('✅ 所有组件已停止');
+  exit(0);
 }
