@@ -50,3 +50,12 @@
   type: frontend.http
   config:
     backend: union_fs
+    address: localhost
+    port: 8051
+
+- name: webdav_server
+  type: frontend.webdav
+  config:
+    backend: union_fs
+    address: 0.0.0.0
+    port: 8052

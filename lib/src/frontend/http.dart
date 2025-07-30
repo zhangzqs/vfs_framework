@@ -5,13 +5,15 @@ import 'package:shelf/shelf_io.dart';
 import 'package:vfs_framework/src/abstract/index.dart';
 
 class HttpServer {
-  HttpServer(this.fs);
+  HttpServer(this.fs, {this.address = 'localhost', this.port = 8080});
 
   final IFileSystem fs;
   io.HttpServer? _server;
+  final String address;
+  final int port;
 
   /// 启动HTTP服务器
-  Future<io.HttpServer> start(String address, int port) async {
+  Future<io.HttpServer> start() async {
     final handler = const Pipeline()
         .addMiddleware(logRequests())
         .addHandler(handleRequest);

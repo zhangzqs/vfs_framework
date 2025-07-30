@@ -429,4 +429,183 @@ void main() {
       expect(rootFiles, contains('/documents'));
     });
   });
+
+  group('UnionFileSystem Root Directory Tests', () {
+    test('root directory should exist when child mounts are present', () async {
+      // 创建两个内存文件系统
+      final fs1 = MemoryFileSystem();
+      final fs2 = MemoryFileSystem();
+
+      // 在fs1中创建一些测试文件
+      await fs1.writeBytes(Path(['test1.txt']), Uint8List.fromList([1, 2, 3]));
+      await fs2.writeBytes(Path(['test2.txt']), Uint8List.fromList([4, 5, 6]));
+
+      // 创建Union文件系统，没有挂载到根目录的文件系统
+      final unionFs = UnionFileSystem(
+        items: [
+          UnionFileSystemItem(
+            fileSystem: fs1,
+            mountPath: Path(['data']), // 挂载到 /data
+            priority: 1,
+          ),
+          UnionFileSystemItem(
+            fileSystem: fs2,
+            mountPath: Path(['config']), // 挂载到 /config
+            priority: 2,
+          ),
+        ],
+      );
+
+      // 测试根目录应该存在
+      final rootExists = await unionFs.exists(Path.rootPath);
+      expect(
+        rootExists,
+        isTrue,
+        reason: 'Root directory should exist when child mounts are present',
+      );
+
+      // 测试根目录的stat应该返回目录状态
+      final rootStat = await unionFs.stat(Path.rootPath);
+      expect(
+        rootStat,
+        isNotNull,
+        reason: 'Root directory stat should not be null',
+      );
+      expect(
+        rootStat!.isDirectory,
+        isTrue,
+        reason: 'Root should be a directory',
+      );
+      expect(rootStat.path.isRoot, isTrue, reason: 'Root path should be root');
+    });
+
+    test(
+      'root directory should not exist when no mounts are present',
+      () async {
+        // 创建空的Union文件系统
+        final unionFs = UnionFileSystem(items: []);
+
+        // 测试根目录不应该存在
+        final rootExists = await unionFs.exists(Path.rootPath);
+        expect(
+          rootExists,
+          isFalse,
+          reason: 'Root directory should not exist when no mounts are present',
+        );
+
+        // 测试根目录的stat应该返回null
+        final rootStat = await unionFs.stat(Path.rootPath);
+        expect(
+          rootStat,
+          isNull,
+          reason:
+              'Root directory stat should be null when no mounts are present',
+        );
+      },
+    );
+
+    test(
+      'root directory should use actual filesystem when mounted at root',
+      () async {
+        // 创建内存文件系统
+        final rootFs = MemoryFileSystem();
+        final childFs = MemoryFileSystem();
+
+        // 在根文件系统中创建文件
+        await rootFs.writeBytes(
+          Path(['root_file.txt']),
+          Uint8List.fromList([1, 2, 3]),
+        );
+        await childFs.writeBytes(
+          Path(['child_file.txt']),
+          Uint8List.fromList([4, 5, 6]),
+        );
+
+        // 创建Union文件系统，其中一个挂载到根目录
+        final unionFs = UnionFileSystem(
+          items: [
+            UnionFileSystemItem(
+              fileSystem: rootFs,
+              mountPath: Path.rootPath, // 挂载到根目录
+              priority: 1,
+            ),
+            UnionFileSystemItem(
+              fileSystem: childFs,
+              mountPath: Path(['data']), // 挂载到 /data
+              priority: 2,
+            ),
+          ],
+        );
+
+        // 测试根目录应该存在
+        final rootExists = await unionFs.exists(Path.rootPath);
+        expect(rootExists, isTrue, reason: 'Root directory should exist');
+
+        // 测试可以访问根文件系统中的文件
+        final rootFileExists = await unionFs.exists(Path(['root_file.txt']));
+        expect(
+          rootFileExists,
+          isTrue,
+          reason: 'Root file should be accessible',
+        );
+
+        // 测试可以访问子挂载点中的文件
+        final childFileExists = await unionFs.exists(
+          Path(['data', 'child_file.txt']),
+        );
+        expect(
+          childFileExists,
+          isTrue,
+          reason: 'Child file should be accessible through mount point',
+        );
+      },
+    );
+
+    test('root directory listing should show mount points', () async {
+      // 创建两个内存文件系统
+      final fs1 = MemoryFileSystem();
+      final fs2 = MemoryFileSystem();
+
+      // 创建Union文件系统
+      final unionFs = UnionFileSystem(
+        items: [
+          UnionFileSystemItem(
+            fileSystem: fs1,
+            mountPath: Path(['data']),
+            priority: 1,
+          ),
+          UnionFileSystemItem(
+            fileSystem: fs2,
+            mountPath: Path(['config']),
+            priority: 2,
+          ),
+        ],
+      );
+
+      // 列出根目录内容
+      final rootListing = await unionFs.list(Path.rootPath).toList();
+
+      // 应该包含挂载点
+      final mountPointNames = rootListing.map((f) => f.path.filename).toSet();
+      expect(
+        mountPointNames,
+        contains('data'),
+        reason: 'Root listing should contain data mount point',
+      );
+      expect(
+        mountPointNames,
+        contains('config'),
+        reason: 'Root listing should contain config mount point',
+      );
+
+      // 挂载点应该显示为目录
+      for (final file in rootListing) {
+        expect(
+          file.isDirectory,
+          isTrue,
+          reason: 'Mount points should appear as directories',
+        );
+      }
+    });
+  });
 }

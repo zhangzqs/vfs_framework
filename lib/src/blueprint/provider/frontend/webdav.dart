@@ -1,35 +1,36 @@
 import 'dart:async';
 
 import 'package:json_annotation/json_annotation.dart';
-import 'package:vfs_framework/src/abstract/index.dart';
+import 'package:vfs_framework/src/abstract/filesystem.dart';
+import 'package:vfs_framework/src/blueprint/engine/core.dart';
+import 'package:vfs_framework/src/frontend/index.dart';
 
-import '../../../frontend/http.dart';
-import '../../engine/core.dart';
-
-part 'http.g.dart';
+part 'webdav.g.dart';
 
 @JsonSerializable()
 class _Config {
   _Config({
     required this.backend,
     this.address = 'localhost',
-    this.port = 8456,
+    this.port = 8080,
   });
+
   factory _Config.fromJson(Map<String, dynamic> json) => _$ConfigFromJson(json);
+
   final String backend;
   final String address;
   final int port;
 
   Map<String, dynamic> toJson() => _$ConfigToJson(this);
 
-  HttpServer build(Context ctx) {
+  WebDAVServer build(Context ctx) {
     if (backend.isEmpty) {
       throw BlueprintException(
         context: ctx,
-        'Backend must be specified for HTTP file system',
+        'Backend must be specified for WebDAV file system',
       );
     }
-    return HttpServer(
+    return WebDAVServer(
       ctx.mustGetComponentByName<IFileSystem>(backend),
       address: address,
       port: port,
@@ -37,23 +38,23 @@ class _Config {
   }
 }
 
-class HttpServerProvider extends ComponentProvider<HttpServer> {
+class WebDAVServerProvider extends ComponentProvider<WebDAVServer> {
   @override
-  String get type => 'frontend.http';
+  String get type => 'frontend.webdav';
 
   @override
-  Future<HttpServer> createComponent(
+  Future<WebDAVServer> createComponent(
     Context ctx,
     Map<String, dynamic> config,
   ) async {
     final cfg = _Config.fromJson(config);
-    final runner = cfg.build(ctx);
-    unawaited(runner.start());
-    return runner;
+    final server = cfg.build(ctx);
+    unawaited(server.start());
+    return server;
   }
 
   @override
-  Future<void> close(Context ctx, HttpServer component) async {
+  Future<void> close(Context ctx, WebDAVServer component) async {
     await component.stop();
   }
 }

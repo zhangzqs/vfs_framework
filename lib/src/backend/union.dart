@@ -316,6 +316,35 @@ class UnionFileSystem extends IFileSystem {
     Path path, {
     ExistsOptions options = const ExistsOptions(),
   }) async {
+    // 特殊处理根目录：如果没有文件系统挂载在根目录，
+    // 但有挂载点是根目录的子目录，则根目录应该存在
+    if (path.isRoot) {
+      final items = _getItemsForPath(path);
+
+      // 如果有文件系统挂载在根目录，检查实际存在性
+      for (final item in items) {
+        if (item.mountPath.isRoot) {
+          if (await item.fileSystem.exists(path, options: options)) {
+            return true;
+          }
+        }
+      }
+
+      // 否则检查是否有任何挂载点在根目录下，如果有则根目录存在
+      final hasChildMounts = _items.any(
+        (item) => !item.mountPath.isRoot && item.mountPath.segments.isNotEmpty,
+      );
+
+      if (hasChildMounts) {
+        logger.fine('Root directory exists due to child mount points');
+        return true;
+      }
+
+      // 如果没有任何挂载点，根目录不存在
+      return false;
+    }
+
+    // 对于非根目录路径，使用原有逻辑
     final items = _getItemsForPath(path);
 
     for (final item in items) {
@@ -546,6 +575,46 @@ class UnionFileSystem extends IFileSystem {
     Path path, {
     StatOptions options = const StatOptions(),
   }) async {
+    // 特殊处理根目录：如果没有文件系统挂载在根目录，
+    // 但有挂载点是根目录的子目录，则根目录应该显示为虚拟目录
+    if (path.isRoot) {
+      final items = _getItemsForPath(path);
+
+      // 如果有文件系统挂载在根目录，使用实际的stat结果
+      for (final item in items) {
+        if (item.mountPath.isRoot) {
+          final status = await item.fileSystem.stat(path, options: options);
+          if (status != null) {
+            return FileStatus(
+              path: path,
+              isDirectory: status.isDirectory,
+              size: status.size,
+              mimeType: status.mimeType,
+            );
+          }
+        }
+      }
+
+      // 否则检查是否有任何挂载点在根目录下，如果有则返回虚拟目录状态
+      final hasChildMounts = _items.any(
+        (item) => !item.mountPath.isRoot && item.mountPath.segments.isNotEmpty,
+      );
+
+      if (hasChildMounts) {
+        logger.fine('Returning virtual root directory status');
+        return FileStatus(
+          path: path,
+          isDirectory: true,
+          size: null,
+          mimeType: null,
+        );
+      }
+
+      // 如果没有任何挂载点，返回null
+      return null;
+    }
+
+    // 对于非根目录路径，使用原有逻辑
     final items = _getItemsForPath(path);
 
     for (final item in items) {

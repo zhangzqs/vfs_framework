@@ -66,6 +66,18 @@ note top of http_server
   --
   **Config**:
   • backend: union_fs
+  • address: localhost
+  • port: 8051
+end note
+
+component [webdav_server] as webdav_server
+note top of webdav_server
+  **Type**: frontend.webdav
+  --
+  **Config**:
+  • backend: union_fs
+  • address: 0.0.0.0
+  • port: 8052
 end note
 
 ' Dependencies
@@ -78,5 +90,6 @@ metadata_cache_fs --> union_fs : uses
 block_cache_fs --> union_fs : uses
 webdav_fs --> union_fs : uses
 union_fs --> http_server : uses
+union_fs --> webdav_server : uses
 
 @enduml
