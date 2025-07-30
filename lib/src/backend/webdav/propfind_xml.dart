@@ -74,8 +74,12 @@ class WebDAVResponse {
   factory WebDAVResponse.fromJson(Map<String, dynamic> json) =>
       _$WebDAVResponseFromJson(json);
 
-  @JsonKey(name: 'href')
+  @JsonKey(name: 'href', fromJson: _decodeHref)
   final String href;
+  static String _decodeHref(String href) {
+    // 处理href中的转义字符
+    return Uri.decodeFull(href);
+  }
 
   @JsonKey(name: 'propstat', fromJson: _propstatFromJson)
   final List<WebDAVPropstat> propstats;

@@ -1,14 +1,17 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:logging/logging.dart';
 import 'package:vfs_framework/src/backend/webdav/propfind_xml.dart';
 import 'package:vfs_framework/src/backend/webdav/webdav_dio.dart';
 import 'package:vfs_framework/src/helper/filesystem_helper.dart';
 import 'package:vfs_framework/vfs_framework.dart';
 
-class WebDAVBaseClient extends IFileSystem with FileSystemHelper {
-  WebDAVBaseClient(this.webdavDio, {String loggerName = 'WebDAVBaseClient'})
-    : logger = Logger(loggerName);
+class WebDAVFileSystem extends IFileSystem with FileSystemHelper {
+  WebDAVFileSystem(Dio dio, {String loggerName = 'WebDAVBaseClient'})
+    : logger = Logger(loggerName),
+      webdavDio = WebDAVDio(dio);
+
   @override
   final Logger logger;
   final WebDAVDio webdavDio;
@@ -165,6 +168,24 @@ class WebDAVBaseClient extends IFileSystem with FileSystemHelper {
     Path path, {
     CreateDirectoryOptions options = const CreateDirectoryOptions(),
   }) async {
+    if (path.isRoot) {
+      return; // 根目录不需要创建
+    }
+    // 检查父目录是否存在
+    final parentPath = path.parent;
+    if (parentPath != null) {
+      final parentStat = await stat(parentPath);
+      if (parentStat == null) {
+        throw FileSystemException.notFound(parentPath);
+      } else {
+        if (!parentStat.isDirectory) {
+          throw FileSystemException.notADirectory(parentPath);
+        } else {
+          // 父目录存在且是目录
+          logger.fine('Parent directory exists: $parentPath');
+        }
+      }
+    }
     final resp = await webdavDio.mkcol(path.toString());
     if (resp.statusCode == 201 || resp.statusCode == 405) {
       return; // 成功创建或已存在

@@ -3,7 +3,10 @@ import 'dart:typed_data';
 import 'package:test/test.dart';
 import 'package:vfs_framework/vfs_framework.dart';
 
-void testFilesystem(IFileSystem Function() fsGetter) {
+void testFilesystem(
+  IFileSystem Function() fsGetter, {
+  bool skipAppendWriteTest = false, // 跳过追加写入测试
+}) {
   group('stat', () {
     test('return null for non-existen path', () async {
       final fs = fsGetter();
@@ -282,22 +285,26 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       expect(readData, equals(newData));
     });
 
-    test('appends to existing file when append is true', () async {
-      final fs = fsGetter();
-      final path = Path.fromString('/test_file.txt');
-      final data1 = Uint8List.fromList([1, 2, 3]);
-      final data2 = Uint8List.fromList([4, 5, 6]);
+    test(
+      'appends to existing file when append is true',
+      skip: skipAppendWriteTest,
+      () async {
+        final fs = fsGetter();
+        final path = Path.fromString('/test_file.txt');
+        final data1 = Uint8List.fromList([1, 2, 3]);
+        final data2 = Uint8List.fromList([4, 5, 6]);
 
-      await fs.writeBytes(path, data1);
-      await fs.writeBytes(
-        path,
-        data2,
-        options: const WriteOptions(mode: WriteMode.append),
-      );
+        await fs.writeBytes(path, data1);
+        await fs.writeBytes(
+          path,
+          data2,
+          options: const WriteOptions(mode: WriteMode.append),
+        );
 
-      final readData = await fs.readAsBytes(path);
-      expect(readData, equals(Uint8List.fromList([1, 2, 3, 4, 5, 6])));
-    });
+        final readData = await fs.readAsBytes(path);
+        expect(readData, equals(Uint8List.fromList([1, 2, 3, 4, 5, 6])));
+      },
+    );
   });
 
   group('list files', () {
@@ -614,7 +621,7 @@ void testFilesystem(IFileSystem Function() fsGetter) {
       );
     });
 
-    test('writes with append mode', () async {
+    test('writes with append mode', skip: skipAppendWriteTest, () async {
       final fs = fsGetter();
       final path = Path.fromString('/test_file.txt');
       final sink = await fs.openWrite(

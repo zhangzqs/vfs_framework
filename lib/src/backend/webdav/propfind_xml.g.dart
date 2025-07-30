@@ -30,7 +30,7 @@ Map<String, dynamic> _$WebDAVMultistatusToJson(WebDAVMultistatus instance) =>
 
 WebDAVResponse _$WebDAVResponseFromJson(Map<String, dynamic> json) =>
     WebDAVResponse(
-      href: json['href'] as String,
+      href: WebDAVResponse._decodeHref(json['href'] as String),
       propstats: WebDAVResponse._propstatFromJson(json['propstat']),
     );
 

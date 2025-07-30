@@ -54,6 +54,10 @@ class WebDAVDio {
   }) async {
     final headers = <String, Object>{};
     if (start != null && end != null) {
+      if (end < start) {
+        throw ArgumentError('End must be greater than or equal to start');
+      }
+      end--; // Range的end是闭区间，所以需要减1
       headers['Range'] = 'bytes=$start-$end';
     } else if (start != null) {
       headers['Range'] = 'bytes=$start-';

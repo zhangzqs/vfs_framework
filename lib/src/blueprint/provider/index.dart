@@ -10,4 +10,5 @@ final defaultProviders = <ComponentProvider>[
   HttpServerProvider(),
   BlockCacheFileSystemProvider(),
   MetadataCacheFileSystemProvider(),
+  WebDAVFileSystemProvider(),
 ];

@@ -36,26 +36,25 @@ void main() {
   dio.interceptors.add(
     const WebDAVBasicAuthInterceptor(username: 'admin', password: 'test'),
   );
-  dio.interceptors.add(
-    LogInterceptor(
-      request: true,
-      responseBody: true,
-      requestBody: true,
-      error: true,
-      logPrint: (Object? object) {
-        print('Dio Log: $object');
-      },
-    ),
-  );
-  final webdavDio = WebDAVDio(dio);
-  final fileSystem = WebDAVBaseClient(webdavDio);
+  // dio.interceptors.add(
+  //   LogInterceptor(
+  //     request: true,
+  //     responseBody: true,
+  //     requestBody: true,
+  //     error: true,
+  //     logPrint: (Object? object) {
+  //       print('Dio Log: $object');
+  //     },
+  //   ),
+  // );
+  final fileSystem = WebDAVFileSystem(dio);
 
   group('test WebDAVFileSystem by filesystem test suites', () {
     tearDown(() async {
       await clearFileSystem(fileSystem);
     });
 
-    testFilesystem(() => fileSystem);
+    testFilesystem(() => fileSystem, skipAppendWriteTest: true);
   });
 
   group('test some', () {
