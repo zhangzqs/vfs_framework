@@ -31,8 +31,86 @@ jobs:
         with:
           sdk: ${{ matrix.sdk }}
 
+      - name: Install rclone
+        run: |
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            # Linux: 使用官方安装脚本
+            curl https://rclone.org/install.sh | sudo bash
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            # macOS: 使用homebrew
+            brew install rclone
+          elif [[ "${{ runner.os }}" == "Windows" ]]; then
+            # Windows: 使用chocolatey
+            choco install rclone -y
+          fi
+        shell: bash
+
+      - name: Setup test directory and rclone config
+        run: |
+          # 创建测试数据目录
+          mkdir -p test-webdav-data
+
+          # 验证rclone安装
+          rclone version
+        shell: bash
+
+      - name: Start rclone WebDAV server
+        run: |
+          echo "Starting rclone WebDAV server..."
+
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            # Windows下使用PowerShell后台启动
+            powershell -Command "Start-Process -FilePath 'rclone' -ArgumentList 'serve','webdav','test-webdav-data','--addr',':8091','--user','admin','--pass','test','--log-level','ERROR' -WindowStyle Hidden"
+          else
+            # Unix系统下后台启动
+            nohup rclone serve webdav test-webdav-data --addr :8091 --user admin --pass test --log-level ERROR > rclone.log 2>&1 &
+          fi
+
+          # 等待服务启动 (最多等待60秒)
+          echo "Waiting for WebDAV server to start..."
+          for i in {1..60}; do
+            if curl -s --fail --user admin:test http://localhost:8091/ >/dev/null 2>&1; then
+              echo "WebDAV server is ready!"
+              break
+            fi
+            if [ $i -eq 60 ]; then
+              echo "WebDAV server failed to start within 60 seconds"
+              if [[ "${{ runner.os }}" != "Windows" ]]; then
+                echo "=== rclone.log ==="
+                cat rclone.log || true
+              fi
+              exit 1
+            fi
+            echo "Attempt $i/60: WebDAV server not ready yet, waiting..."
+            sleep 1
+          done
+        shell: bash
+
+      - name: Test WebDAV server connectivity
+        run: |
+          echo "Testing WebDAV server connectivity..."
+
+          # 测试基本连接
+          curl -v --user admin:test http://localhost:8091/
+
+          # 测试PROPFIND请求 (WebDAV基本操作)
+          curl -X PROPFIND --user admin:test -H "Depth: 0" http://localhost:8091/ || echo "PROPFIND test completed"
+
+          echo "WebDAV server connectivity test passed!"
+        shell: bash
+
       - name: Install dependencies
         run: dart pub get
 
       - name: Run tests
         run: dart test
+
+      - name: Stop rclone WebDAV server (cleanup)
+        if: always()
+        run: |
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            taskkill /F /IM rclone.exe || true
+          else
+            pkill rclone || true
+          fi
+        shell: bash
