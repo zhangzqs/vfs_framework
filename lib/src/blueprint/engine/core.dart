@@ -125,7 +125,6 @@ class BlueprintEngine {
     );
   }
 
-  @override
   Future<void> close() async {
     for (final entry in _components.values) {
       try {
