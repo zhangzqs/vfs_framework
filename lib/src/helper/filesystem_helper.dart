@@ -7,13 +7,17 @@ import '../abstract/index.dart';
 /// 一个基于非递归列举形成递归列举的函数
 Stream<FileStatus> recursiveList(
   FileSystemContext context, {
-  required Stream<FileStatus> Function(Path path, {ListOptions options})
+  required Stream<FileStatus> Function(
+    FileSystemContext context,
+    Path path, {
+    ListOptions options,
+  })
   nonRecursiveList, // 普通的非递归列举函数
   required Path path,
   required ListOptions options,
 }) async* {
   if (!options.recursive) {
-    yield* nonRecursiveList(path, options: options);
+    yield* nonRecursiveList(context, path, options: options);
     return;
   }
   // 如果是递归列举，则使用队列来处理
@@ -26,6 +30,7 @@ Stream<FileStatus> recursiveList(
     seen.add(currentPath);
 
     await for (final status in nonRecursiveList(
+      context,
       currentPath,
       options: options,
     )) {
@@ -39,13 +44,17 @@ Stream<FileStatus> recursiveList(
 
 Future<void> recursiveCreateDirectory(
   FileSystemContext context, {
-  required Future<void> Function(Path path, {CreateDirectoryOptions options})
+  required Future<void> Function(
+    FileSystemContext context,
+    Path path, {
+    CreateDirectoryOptions options,
+  })
   nonRecursiveCreateDirectory,
   required Path path,
   required CreateDirectoryOptions options,
 }) async {
   if (!options.createParents) {
-    await nonRecursiveCreateDirectory(path, options: options);
+    await nonRecursiveCreateDirectory(context, path, options: options);
     return;
   }
   // 递归逐级依次创建目录
@@ -58,7 +67,7 @@ Future<void> recursiveCreateDirectory(
   // 反转顺序，从根目录开始创建
   for (final dir in dirs.reversed) {
     try {
-      await nonRecursiveCreateDirectory(dir, options: options);
+      await nonRecursiveCreateDirectory(context, dir, options: options);
     } on FileSystemException catch (e) {
       if (e.code != FileSystemErrorCode.alreadyExists) {
         rethrow; // 如果不是因为目录已存在，则抛出异常
@@ -69,15 +78,23 @@ Future<void> recursiveCreateDirectory(
 
 Future<void> recursiveDelete(
   FileSystemContext context, {
-  required Future<void> Function(Path path, {DeleteOptions options})
+  required Future<void> Function(
+    FileSystemContext context,
+    Path path, {
+    DeleteOptions options,
+  })
   nonRecursiveDelete, // 普通的非递归删除函数
-  required Stream<FileStatus> Function(Path path, {ListOptions options})
+  required Stream<FileStatus> Function(
+    FileSystemContext context,
+    Path path, {
+    ListOptions options,
+  })
   nonRecursiveList, // 普通的非递归列举函数
   required Path path,
   required DeleteOptions options,
 }) async {
   if (!options.recursive) {
-    await nonRecursiveDelete(path, options: options);
+    await nonRecursiveDelete(context, path, options: options);
     return;
   }
   // 递归删除目录
@@ -90,16 +107,17 @@ Future<void> recursiveDelete(
     seen.add(currentPath);
 
     await for (final status in nonRecursiveList(
+      context,
       currentPath,
       options: const ListOptions(recursive: true),
     )) {
       if (status.isDirectory) {
         queue.add(status.path);
       } else {
-        await nonRecursiveDelete(status.path, options: options);
+        await nonRecursiveDelete(context, status.path, options: options);
       }
     }
-    await nonRecursiveDelete(currentPath, options: options);
+    await nonRecursiveDelete(context, currentPath, options: options);
   }
 }
 
@@ -187,15 +205,21 @@ Future<void> copyFileByReadAndWrite(
   Path source,
   Path destination, {
   required Future<StreamSink<List<int>>> Function(
+    FileSystemContext context,
     Path path, {
     WriteOptions options,
   })
   openWrite,
-  required Stream<List<int>> Function(Path path, {ReadOptions options})
+  required Stream<List<int>> Function(
+    FileSystemContext context,
+    Path path, {
+    ReadOptions options,
+  })
   openRead,
 }) async {
-  final readStream = openRead(source);
+  final readStream = openRead(context, source);
   final writeSink = await openWrite(
+    context,
     destination,
     options: const WriteOptions(mode: WriteMode.overwrite),
   );
@@ -209,7 +233,11 @@ mixin FileSystemHelper on IFileSystem {
   /// 基于非递归list实现支持递归的list
   Stream<FileStatus> listImplByNonRecursive(
     FileSystemContext context, {
-    required Stream<FileStatus> Function(Path path, {ListOptions options})
+    required Stream<FileStatus> Function(
+      FileSystemContext context,
+      Path path, {
+      ListOptions options,
+    })
     nonRecursiveList,
     required Path path,
     required ListOptions options,
@@ -233,7 +261,11 @@ mixin FileSystemHelper on IFileSystem {
   /// 基于非递归createDirectory实现支持递归的createDirectory
   Future<void> createDirectoryImplByNonRecursive(
     FileSystemContext context, {
-    required Future<void> Function(Path path, {CreateDirectoryOptions options})
+    required Future<void> Function(
+      FileSystemContext context,
+      Path path, {
+      CreateDirectoryOptions options,
+    })
     nonRecursiveCreateDirectory,
     required Path path,
     required CreateDirectoryOptions options,
@@ -262,9 +294,17 @@ mixin FileSystemHelper on IFileSystem {
 
   Future<void> deleteImplByNonRecursive(
     FileSystemContext context, {
-    required Future<void> Function(Path path, {DeleteOptions options})
+    required Future<void> Function(
+      FileSystemContext context,
+      Path path, {
+      DeleteOptions options,
+    })
     nonRecursiveDelete,
-    required Stream<FileStatus> Function(Path path, {ListOptions options})
+    required Stream<FileStatus> Function(
+      FileSystemContext context,
+      Path path, {
+      ListOptions options,
+    })
     nonRecursiveList,
     required Path path,
     required DeleteOptions options,
@@ -279,7 +319,7 @@ mixin FileSystemHelper on IFileSystem {
         final emptyDir = await list(context, path).isEmpty;
         if (emptyDir) {
           // 空目录可以直接删除
-          await nonRecursiveDelete(path, options: options);
+          await nonRecursiveDelete(context, path, options: options);
         } else {
           if (!options.recursive) {
             throw FileSystemException.notEmptyDirectory(path);
@@ -296,7 +336,7 @@ mixin FileSystemHelper on IFileSystem {
         }
       } else {
         // 目标是文件，直接删除
-        await nonRecursiveDelete(path, options: options);
+        await nonRecursiveDelete(context, path, options: options);
       }
     }
   }

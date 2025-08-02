@@ -1,69 +1,65 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:logging/logging.dart';
 import 'package:path/path.dart' as p;
+import 'package:vfs_framework/src/abstract/context.dart';
 import '../abstract/index.dart';
 import '../helper/filesystem_helper.dart';
 import '../helper/mime_type_helper.dart';
 
 class LocalFileSystem extends IFileSystem with FileSystemHelper {
   LocalFileSystem({Directory? baseDir, String loggerName = 'LocalFileSystem'})
-    : baseDir = baseDir ?? Directory.current,
-      logger = Logger(loggerName) {
-    logger.info(
-      'LocalFileSystem initialized with baseDir: ${this.baseDir.path}',
-    );
-  }
-
-  @override
-  final Logger logger;
+    : baseDir = baseDir ?? Directory.current;
 
   /// 本地文件系统的基础目录
   final Directory baseDir;
 
   // 将抽象Path转换为本地文件系统路径
-  String _toLocalPath(Path path) {
+  String _toLocalPath(FileSystemContext context, Path path) {
+    final logger = context.logger;
     final localPath = p.join(baseDir.path, p.joinAll(path.segments));
-    logger.finest(
+    logger.trace(
       'Converting abstract path ${path.toString()} to local path: $localPath',
     );
     return localPath;
   }
 
   // 将本地路径转换为抽象Path
-  Path _toPath(String localPath) {
-    logger.finest('Converting local path $localPath to abstract path');
+  Path _toPath(FileSystemContext context, String localPath) {
+    final logger = context.logger;
+    logger.trace('Converting local path $localPath to abstract path');
     // 计算相对于baseDir的相对路径
     String relative = p.relative(localPath, from: baseDir.path);
 
     // 处理特殊情况：根目录
     if (relative == '.') {
-      logger.finest('Local path is root directory, returning empty path');
+      logger.trace('Local path is root directory, returning empty path');
       return Path([]);
     }
 
     // 使用path包分割路径
     final abstractPath = Path(p.split(relative));
-    logger.finest('Converted to abstract path: ${abstractPath.toString()}');
+    logger.trace('Converted to abstract path: ${abstractPath.toString()}');
     return abstractPath;
   }
 
   @override
   Future<FileStatus?> stat(
+    FileSystemContext context,
     Path path, {
     StatOptions options = const StatOptions(),
   }) async {
-    logger.fine('Getting file status for path: ${path.toString()}');
+    final logger = context.logger;
+    logger.debug('Getting file status for path: ${path.toString()}');
     try {
-      final localPath = _toLocalPath(path);
-      logger.finest('Checking entity type for local path: $localPath');
+      final localPath = _toLocalPath(context, path);
+      logger.trace('Checking entity type for local path: $localPath');
       final entity = FileSystemEntity.isDirectorySync(localPath)
           ? Directory(localPath)
           : File(localPath);
 
       if (!await entity.exists()) {
-        logger.fine('Entity does not exist: ${path.toString()}');
+        logger.debug('Entity does not exist: ${path.toString()}');
         return null;
       }
 
@@ -77,7 +73,7 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
             : null,
       );
 
-      logger.fine(
+      logger.debug(
         'File status retrieved - path: ${path.toString()}, '
         'isDir: ${fileStatus.isDirectory}, size: ${fileStatus.size}',
       );
@@ -102,18 +98,20 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
   }
 
   Stream<FileStatus> nonRecursiveList(
+    FileSystemContext context,
     Path path, {
     ListOptions options = const ListOptions(),
   }) async* {
-    logger.fine('Starting non-recursive list for path: ${path.toString()}');
-    final localPath = _toLocalPath(path);
+    final logger = context.logger;
+    logger.debug('Starting non-recursive list for path: ${path.toString()}');
+    final localPath = _toLocalPath(context, path);
     int itemCount = 0;
 
     await for (final entity in Directory(localPath).list()) {
       try {
         final stat = await entity.stat();
         final fileStatus = FileStatus(
-          path: _toPath(entity.path),
+          path: _toPath(context, entity.path),
           size: stat.type == FileSystemEntityType.file ? stat.size : null,
           isDirectory: stat.type == FileSystemEntityType.directory,
           mimeType: stat.type == FileSystemEntityType.file
@@ -121,7 +119,7 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
               : null,
         );
         itemCount++;
-        logger.finest(
+        logger.trace(
           'Listed item $itemCount: '
           '${fileStatus.path.toString()} '
           '(${fileStatus.isDirectory ? "dir" : "file"})',
@@ -133,7 +131,7 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
       }
     }
 
-    logger.fine(
+    logger.debug(
       'Completed non-recursive list for ${path.toString()}, '
       'found $itemCount items',
     );
@@ -141,15 +139,18 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Stream<FileStatus> list(
+    FileSystemContext context,
     Path path, {
     ListOptions options = const ListOptions(),
   }) {
-    logger.fine(
+    final logger = context.logger;
+    logger.debug(
       'Starting ${options.recursive ? "recursive" : "non-recursive"} '
       'list for path: ${path.toString()}',
     );
     // 遍历目录
     return listImplByNonRecursive(
+      context,
       nonRecursiveList: nonRecursiveList,
       path: path,
       options: options,
@@ -157,34 +158,39 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
   }
 
   Future<void> nonRecursiveCopyFile(
+    FileSystemContext context,
     Path source,
     Path destination, {
     CopyOptions options = const CopyOptions(),
   }) {
-    logger.fine(
+    final logger = context.logger;
+    logger.debug(
       'Copying file from ${source.toString()} to ${destination.toString()}',
     );
     return copyFileByReadAndWrite(
+      context,
       source,
       destination,
       openWrite: openWrite,
       openRead: openRead,
     );
-    // return File(_toLocalPath(source)).copy(_toLocalPath(destination));
   }
 
   @override
   Future<void> copy(
+    FileSystemContext context,
     Path source,
     Path destination, {
     CopyOptions options = const CopyOptions(),
   }) async {
+    final logger = context.logger;
     logger.info(
       'Starting copy operation '
       'from ${source.toString()} to ${destination.toString()}',
     );
     try {
       await copyImplByNonRecursive(
+        context,
         source: source,
         destination: destination,
         options: options,
@@ -206,12 +212,14 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
   }
 
   Future<void> nonRecursiveCreateDirectory(
+    FileSystemContext context,
     Path path, {
     CreateDirectoryOptions options = const CreateDirectoryOptions(),
   }) async {
-    logger.fine('Creating directory: ${path.toString()}');
+    final logger = context.logger;
+    logger.debug('Creating directory: ${path.toString()}');
     try {
-      final localPath = _toLocalPath(path);
+      final localPath = _toLocalPath(context, path);
       final directory = Directory(localPath);
 
       // 检查父目录是否存在
@@ -220,12 +228,12 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
         logger.warning(
           'Parent directory does not exist for: ${path.toString()}',
         );
-        throw FileSystemException.notFound(_toPath(parent.path));
+        throw FileSystemException.notFound(_toPath(context, parent.path));
       }
 
       // 创建目录
       await directory.create();
-      logger.fine('Directory created successfully: ${path.toString()}');
+      logger.debug('Directory created successfully: ${path.toString()}');
     } on IOException catch (e) {
       logger.warning(
         'IOException while creating directory ${path.toString()}: $e',
@@ -240,11 +248,14 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Future<void> createDirectory(
+    FileSystemContext context,
     Path path, {
     CreateDirectoryOptions options = const CreateDirectoryOptions(),
   }) {
+    final logger = context.logger;
     logger.info('Starting create directory operation for: ${path.toString()}');
     return createDirectoryImplByNonRecursive(
+      context,
       nonRecursiveCreateDirectory: nonRecursiveCreateDirectory,
       path: path,
       options: options,
@@ -252,30 +263,32 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
   }
 
   Future<void> nonRecursiveDelete(
+    FileSystemContext context,
     Path path, {
     DeleteOptions options = const DeleteOptions(),
   }) async {
-    logger.fine(
+    final logger = context.logger;
+    logger.debug(
       'Deleting entity: ${path.toString()} (recursive: ${options.recursive})',
     );
     try {
-      final localPath = _toLocalPath(path);
+      final localPath = _toLocalPath(context, path);
       final entity = FileSystemEntity.typeSync(localPath);
 
       switch (entity) {
         case FileSystemEntityType.file:
-          logger.finest('Deleting file: ${path.toString()}');
+          logger.trace('Deleting file: ${path.toString()}');
           await File(localPath).delete();
           break;
         case FileSystemEntityType.directory:
-          logger.finest(
+          logger.trace(
             'Deleting directory: ${path.toString()} '
             '(recursive: ${options.recursive})',
           );
           await Directory(localPath).delete(recursive: options.recursive);
           break;
         case FileSystemEntityType.link:
-          logger.finest('Deleting link: ${path.toString()}');
+          logger.trace('Deleting link: ${path.toString()}');
           await Link(localPath).delete();
           break;
         default:
@@ -284,7 +297,7 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
           );
           throw FileSystemException.unsupportedEntity(path);
       }
-      logger.fine('Entity deleted successfully: ${path.toString()}');
+      logger.debug('Entity deleted successfully: ${path.toString()}');
     } on FileSystemException catch (e) {
       logger.warning(
         'FileSystemException while deleting ${path.toString()}: $e',
@@ -302,14 +315,17 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Future<void> delete(
+    FileSystemContext context,
     Path path, {
     DeleteOptions options = const DeleteOptions(),
   }) {
+    final logger = context.logger;
     logger.info(
       'Starting delete operation for: ${path.toString()} '
       '(recursive: ${options.recursive})',
     );
     return deleteImplByNonRecursive(
+      context,
       nonRecursiveDelete: nonRecursiveDelete,
       nonRecursiveList: nonRecursiveList,
       path: path,
@@ -319,22 +335,24 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Future<StreamSink<List<int>>> openWrite(
+    FileSystemContext context,
     Path path, {
     WriteOptions options = const WriteOptions(),
   }) async {
-    logger.fine(
+    final logger = context.logger;
+    logger.debug(
       'Opening write stream for: ${path.toString()} (mode: ${options.mode})',
     );
-    await preOpenWriteCheck(path, options: options);
+    await preOpenWriteCheck(context, path, options: options);
     try {
-      final sink = File(_toLocalPath(path)).openWrite(
+      final sink = File(_toLocalPath(context, path)).openWrite(
         mode: {
           WriteMode.write: FileMode.write,
           WriteMode.overwrite: FileMode.writeOnly,
           WriteMode.append: FileMode.append,
         }[options.mode]!,
       );
-      logger.fine('Write stream opened successfully for: ${path.toString()}');
+      logger.debug('Write stream opened successfully for: ${path.toString()}');
       return sink;
     } on IOException catch (e) {
       logger.warning(
@@ -350,27 +368,29 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Stream<List<int>> openRead(
+    FileSystemContext context,
     Path path, {
     ReadOptions options = const ReadOptions(),
   }) async* {
-    logger.fine(
+    final logger = context.logger;
+    logger.debug(
       'Opening read stream for: ${path.toString()} '
       '(start: ${options.start}, end: ${options.end})',
     );
-    await preOpenReadCheck(path, options: options);
+    await preOpenReadCheck(context, path, options: options);
     try {
       int bytesRead = 0;
       // 打开文件并读取内容
       await for (final chunk in File(
-        _toLocalPath(path),
+        _toLocalPath(context, path),
       ).openRead(options.start, options.end)) {
         bytesRead += chunk.length;
-        logger.finest(
+        logger.trace(
           'Read chunk of ${chunk.length} bytes from ${path.toString()}',
         );
         yield chunk; // 逐块返回文件内容
       }
-      logger.fine(
+      logger.debug(
         'Read stream completed for ${path.toString()}, total bytes: $bytesRead',
       );
     } on IOException catch (e) {
