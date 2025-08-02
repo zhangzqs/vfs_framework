@@ -102,9 +102,9 @@ class _DigestNonce {
 
 /// Digest认证管理器
 class _DigestAuthManager {
-  static final _instance = _DigestAuthManager._();
   factory _DigestAuthManager() => _instance;
   _DigestAuthManager._();
+  static final _instance = _DigestAuthManager._();
 
   final Map<String, _DigestNonce> _nonces = {};
 
