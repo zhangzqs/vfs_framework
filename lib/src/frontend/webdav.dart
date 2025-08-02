@@ -1,32 +1,34 @@
 import 'dart:io' as io;
 import 'dart:math' as math;
+import 'dart:async';
 
-import 'package:logging/logging.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart';
+import 'package:uuid/uuid.dart';
 import 'package:vfs_framework/src/abstract/index.dart';
+import 'package:vfs_framework/src/helper/context_shelf_middleware.dart';
 import 'package:vfs_framework/vfs_framework.dart';
 
 /// WebDAV服务器实现
 class WebDAVServer {
   WebDAVServer(
     this.fs, {
-    String loggerName = 'WebDAVServer',
     this.address = 'localhost',
     this.port = 8080,
-  }) : logger = Logger(loggerName);
+    Logger? logger,
+  }) : logger = logger ?? Logger.defaultLogger;
 
   final IFileSystem fs;
-  final Logger logger;
   io.HttpServer? _server;
   final String address;
   final int port;
+  final Logger logger;
 
   /// 启动WebDAV服务器
   Future<io.HttpServer> start() async {
     final handler = const Pipeline()
         .addMiddleware(_corsMiddleware)
-        .addMiddleware(logRequests())
+        .addMiddleware(contextMiddleware(logger))
         .addHandler(handleRequest);
 
     _server = await serve(handler, address, port);
@@ -40,48 +42,56 @@ class WebDAVServer {
   Future<void> stop() async {
     await _server?.close();
     _server = null;
-    logger.info('WebDAV服务器已停止');
   }
 
   /// CORS中间件
   Middleware get _corsMiddleware => (Handler innerHandler) {
+    final corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': _routerHandler.keys.join(', '),
+      'Access-Control-Allow-Headers':
+          'Content-Type, Authorization, Depth, Destination, Overwrite',
+      'Access-Control-Max-Age': '86400',
+    };
     return (Request request) async {
       if (request.method == 'OPTIONS') {
-        return Response.ok('', headers: _corsHeaders);
+        return Response.ok('', headers: corsHeaders);
       }
 
       final response = await innerHandler(request);
-      return response.change(headers: {...response.headers, ..._corsHeaders});
+      return response.change(headers: {...response.headers, ...corsHeaders});
     };
   };
 
-  late final _routerHandler = {
-    'GET': _handleGet,
-    'PUT': _handlePut,
-    'DELETE': _handleDelete,
-    'MKCOL': _handleMkcol,
-    'PROPFIND': _handlePropfind,
-    'PROPPATCH': _handleProppatch,
-    'COPY': _handleCopy,
-    'MOVE': _handleMove,
-    'HEAD': _handleHead,
-    'OPTIONS': _handleOptions,
-  };
-
-  late final _corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': _routerHandler.keys.join(', '),
-    'Access-Control-Allow-Headers':
-        'Content-Type, Authorization, Depth, Destination, Overwrite',
-    'Access-Control-Max-Age': '86400',
-  };
+  late final _routerHandler =
+      <
+        String,
+        Future<Response> Function(
+          FileSystemContext context,
+          Path path,
+          Request request,
+        )
+      >{
+        'GET': _handleGet,
+        'PUT': _handlePut,
+        'DELETE': _handleDelete,
+        'MKCOL': _handleMkcol,
+        'PROPFIND': _handlePropfind,
+        'PROPPATCH': _handleProppatch,
+        'COPY': _handleCopy,
+        'MOVE': _handleMove,
+        'HEAD': _handleHead,
+        'OPTIONS': _handleOptions,
+      };
 
   /// 主要的请求处理器
   Future<Response> handleRequest(Request request) async {
     final method = request.method.toUpperCase();
     final path = _getPathFromRequest(request);
+    final context = mustGetContextFromRequest(request);
+    final logger = context.logger;
 
-    logger.fine('处理 $method 请求: $path');
+    logger.debug('处理 $method 请求: $path');
 
     try {
       if (!_routerHandler.containsKey(method)) {
@@ -91,9 +101,9 @@ class WebDAVServer {
           headers: {'Allow': _routerHandler.keys.join(', ')},
         );
       }
-      return await _routerHandler[method]!(path, request);
+      return await _routerHandler[method]!(context, path, request);
     } catch (e, stackTrace) {
-      logger.severe('处理请求时发生错误', e, stackTrace);
+      logger.error('处理请求时发生错误', error: e, stackTrace: stackTrace);
       return Response.internalServerError(body: '服务器内部错误: $e');
     }
   }
@@ -109,30 +119,39 @@ class WebDAVServer {
       return Path.rootPath;
     }
 
-    logger.finest('解析路径: ${request.url.path} -> segments: $segments');
+    logger.trace('解析路径: ${request.url.path} -> segments: $segments');
     return Path(segments);
   }
 
   /// 处理GET请求 - 读取文件或列出目录
-  Future<Response> _handleGet(Path path, Request request) async {
-    final status = await fs.stat(path);
+  Future<Response> _handleGet(
+    FileSystemContext context,
+    Path path,
+    Request request,
+  ) async {
+    final status = await fs.stat(context, path);
     if (status == null) {
       return Response.notFound('文件或目录不存在');
     }
 
     if (status.isDirectory) {
       // 目录：返回简单的HTML列表
-      return await _handleDirectoryListing(path);
+      return await _handleDirectoryListing(context, path);
     } else {
       // 文件：返回文件内容
-      return await _handleFileDownload(path, status, request);
+      return await _handleFileDownload(context, path, status, request);
     }
   }
 
   /// 处理PUT请求 - 上传文件
-  Future<Response> _handlePut(Path path, Request request) async {
+  Future<Response> _handlePut(
+    FileSystemContext context,
+    Path path,
+    Request request,
+  ) async {
     try {
       final sink = await fs.openWrite(
+        context,
         path,
         options: const WriteOptions(mode: WriteMode.overwrite),
       );
@@ -152,14 +171,22 @@ class WebDAVServer {
   }
 
   /// 处理DELETE请求 - 删除文件或目录
-  Future<Response> _handleDelete(Path path, Request request) async {
+  Future<Response> _handleDelete(
+    FileSystemContext context,
+    Path path,
+    Request request,
+  ) async {
     try {
-      final status = await fs.stat(path);
+      final status = await fs.stat(context, path);
       if (status == null) {
         return Response.notFound('文件或目录不存在');
       }
 
-      await fs.delete(path, options: const DeleteOptions(recursive: true));
+      await fs.delete(
+        context,
+        path,
+        options: const DeleteOptions(recursive: true),
+      );
       logger.info('删除成功: $path');
       return Response(204); // No Content
     } on FileSystemException catch (e) {
@@ -169,9 +196,14 @@ class WebDAVServer {
   }
 
   /// 处理MKCOL请求 - 创建目录
-  Future<Response> _handleMkcol(Path path, Request request) async {
+  Future<Response> _handleMkcol(
+    FileSystemContext context,
+    Path path,
+    Request request,
+  ) async {
     try {
       await fs.createDirectory(
+        context,
         path,
         options: const CreateDirectoryOptions(createParents: true),
       );
@@ -187,13 +219,17 @@ class WebDAVServer {
   }
 
   /// 处理PROPFIND请求 - 获取属性
-  Future<Response> _handlePropfind(Path path, Request request) async {
+  Future<Response> _handlePropfind(
+    FileSystemContext context,
+    Path path,
+    Request request,
+  ) async {
     final depthHeader = request.headers['depth'] ?? '1';
     final depth = int.tryParse(depthHeader) ?? 1;
 
     logger.info('PROPFIND请求: path=$path, depth=$depth');
 
-    final status = await fs.stat(path);
+    final status = await fs.stat(context, path);
     if (status == null) {
       logger.warning('PROPFIND: 路径不存在: $path');
       return Response.notFound('文件或目录不存在');
@@ -207,24 +243,24 @@ class WebDAVServer {
     final responses = <String>[];
 
     // 添加当前路径的属性
-    responses.add(_buildPropfindResponse(path, status));
+    responses.add(_buildPropfindResponse(context, path, status));
 
     // 如果是目录且深度大于0，添加子项
     if (status.isDirectory && depth > 0) {
       logger.info('PROPFIND: 列出目录内容: $path');
       var childCount = 0;
-      await for (final child in fs.list(path)) {
+      await for (final child in fs.list(context, path)) {
         childCount++;
-        logger.fine(
+        logger.debug(
           'PROPFIND: 添加子项: ${child.path} (${child.isDirectory ? "目录" : "文件"})',
         );
-        responses.add(_buildPropfindResponse(child.path, child));
+        responses.add(_buildPropfindResponse(context, child.path, child));
       }
       logger.info('PROPFIND: 目录 $path 包含 $childCount 个子项');
     }
 
     final xml = _buildMultistatusXml(responses);
-    logger.fine('PROPFIND响应XML:\n$xml');
+    logger.debug('PROPFIND响应XML:\n$xml');
 
     return Response(
       207, // Multi-Status
@@ -234,13 +270,21 @@ class WebDAVServer {
   }
 
   /// 处理PROPPATCH请求 - 设置属性（暂不实现）
-  Future<Response> _handleProppatch(Path path, Request request) async {
+  Future<Response> _handleProppatch(
+    FileSystemContext context,
+    Path path,
+    Request request,
+  ) async {
     // WebDAV属性修改，暂时返回不支持
     return Response(403, body: '属性修改暂不支持');
   }
 
   /// 处理COPY请求 - 复制文件或目录
-  Future<Response> _handleCopy(Path path, Request request) async {
+  Future<Response> _handleCopy(
+    FileSystemContext context,
+    Path path,
+    Request request,
+  ) async {
     final destinationHeader = request.headers['destination'];
     if (destinationHeader == null) {
       return Response(400, body: '缺少Destination头');
@@ -254,6 +298,7 @@ class WebDAVServer {
 
     try {
       await fs.copy(
+        context,
         path,
         destinationPath,
         options: CopyOptions(overwrite: overwrite, recursive: true),
@@ -267,7 +312,11 @@ class WebDAVServer {
   }
 
   /// 处理MOVE请求 - 移动文件或目录
-  Future<Response> _handleMove(Path path, Request request) async {
+  Future<Response> _handleMove(
+    FileSystemContext context,
+    Path path,
+    Request request,
+  ) async {
     final destinationHeader = request.headers['destination'];
     if (destinationHeader == null) {
       return Response(400, body: '缺少Destination头');
@@ -281,6 +330,7 @@ class WebDAVServer {
 
     try {
       await fs.move(
+        context,
         path,
         destinationPath,
         options: MoveOptions(overwrite: overwrite, recursive: true),
@@ -294,8 +344,12 @@ class WebDAVServer {
   }
 
   /// 处理HEAD请求 - 仅返回头信息
-  Future<Response> _handleHead(Path path, Request request) async {
-    final status = await fs.stat(path);
+  Future<Response> _handleHead(
+    FileSystemContext context,
+    Path path,
+    Request request,
+  ) async {
+    final status = await fs.stat(context, path);
     if (status == null) {
       return Response.notFound('');
     }
@@ -315,7 +369,11 @@ class WebDAVServer {
   }
 
   /// 处理OPTIONS请求 - 返回支持的方法
-  Future<Response> _handleOptions(Path path, Request request) async {
+  Future<Response> _handleOptions(
+    FileSystemContext context,
+    Path path,
+    Request request,
+  ) async {
     return Response.ok(
       '',
       headers: {'Allow': _routerHandler.keys.join(', '), 'DAV': '1, 2'},
@@ -323,10 +381,13 @@ class WebDAVServer {
   }
 
   /// 处理目录列表（HTML格式）
-  Future<Response> _handleDirectoryListing(Path path) async {
+  Future<Response> _handleDirectoryListing(
+    FileSystemContext context,
+    Path path,
+  ) async {
     final items = <String>[];
 
-    await for (final item in fs.list(path)) {
+    await for (final item in fs.list(context, path)) {
       final name = item.path.filename ?? '';
       final isDir = item.isDirectory;
       final size = item.size ?? 0;
@@ -377,6 +438,7 @@ class WebDAVServer {
 
   /// 处理文件下载
   Future<Response> _handleFileDownload(
+    FileSystemContext context,
     Path path,
     FileStatus status,
     Request request,
@@ -388,7 +450,13 @@ class WebDAVServer {
     final rangeHeader = request.headers['range'];
 
     if (rangeHeader != null && fileSize != null) {
-      return await _handleRangeRequest(path, fileSize, rangeHeader, mimeType);
+      return await _handleRangeRequest(
+        context,
+        path,
+        fileSize,
+        rangeHeader,
+        mimeType,
+      );
     }
 
     // 标准的完整文件下载
@@ -398,17 +466,18 @@ class WebDAVServer {
       if (fileSize != null) 'Content-Length': fileSize.toString(),
     };
 
-    return Response.ok(fs.openRead(path), headers: headers);
+    return Response.ok(fs.openRead(context, path), headers: headers);
   }
 
   /// 处理HTTP Range请求，返回206 Partial Content
   Future<Response> _handleRangeRequest(
+    FileSystemContext context,
     Path path,
     int fileSize,
     String rangeHeader,
     String mimeType,
   ) async {
-    logger.fine('处理Range请求: $path, Range: $rangeHeader, FileSize: $fileSize');
+    logger.debug('处理Range请求: $path, Range: $rangeHeader, FileSize: $fileSize');
 
     // 解析Range头：bytes=start-end
     final rangeMatch = RegExp(r'bytes=(\d*)-(\d*)').firstMatch(rangeHeader);
@@ -475,6 +544,7 @@ class WebDAVServer {
 
       // 使用ReadOptions指定范围
       final stream = fs.openRead(
+        context,
         path,
         options: ReadOptions(start: start, end: end + 1),
       );
@@ -495,7 +565,11 @@ class WebDAVServer {
   }
 
   /// 构建PROPFIND响应
-  String _buildPropfindResponse(Path path, FileStatus status) {
+  String _buildPropfindResponse(
+    FileSystemContext context,
+    Path path,
+    FileStatus status,
+  ) {
     final href = _buildHrefForPath(path, status.isDirectory);
     final isCollection = status.isDirectory;
     final size = status.size ?? 0;
