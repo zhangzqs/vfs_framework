@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import '../abstract/context.dart';
 import '../abstract/index.dart';
 
 /// 一个基于非递归列举形成递归列举的函数
-Stream<FileStatus> recursiveList({
+Stream<FileStatus> recursiveList(
+  FileSystemContext context, {
   required Stream<FileStatus> Function(Path path, {ListOptions options})
   nonRecursiveList, // 普通的非递归列举函数
   required Path path,
@@ -35,7 +37,8 @@ Stream<FileStatus> recursiveList({
   }
 }
 
-Future<void> recursiveCreateDirectory({
+Future<void> recursiveCreateDirectory(
+  FileSystemContext context, {
   required Future<void> Function(Path path, {CreateDirectoryOptions options})
   nonRecursiveCreateDirectory,
   required Path path,
@@ -64,7 +67,8 @@ Future<void> recursiveCreateDirectory({
   }
 }
 
-Future<void> recursiveDelete({
+Future<void> recursiveDelete(
+  FileSystemContext context, {
   required Future<void> Function(Path path, {DeleteOptions options})
   nonRecursiveDelete, // 普通的非递归删除函数
   required Stream<FileStatus> Function(Path path, {ListOptions options})
@@ -99,34 +103,45 @@ Future<void> recursiveDelete({
   }
 }
 
-Future<void> recursiveCopy({
+Future<void> recursiveCopy(
+  FileSystemContext context, {
   required Path source,
   required Path destination,
   required CopyOptions options,
   required Future<void> Function(
+    FileSystemContext context,
     Path source,
     Path destination, {
     CopyOptions options,
   })
   nonRecursiveCopyFile,
-  required Stream<FileStatus> Function(Path path, {ListOptions options})
+  required Stream<FileStatus> Function(
+    FileSystemContext context,
+    Path path, {
+    ListOptions options,
+  })
   nonRecursiveList,
-  required Future<void> Function(Path path, {CreateDirectoryOptions options})
+  required Future<void> Function(
+    FileSystemContext context,
+    Path path, {
+    CreateDirectoryOptions options,
+  })
   recursiveCreateDirectory,
 }) async {
   // 检查源是否存在
-  if (await nonRecursiveList(source).isEmpty) {
+  if (await nonRecursiveList(context, source).isEmpty) {
     throw FileSystemException.notFound(source);
   }
 
   // 检查目标是否已存在
-  if (!(await nonRecursiveList(destination).isEmpty)) {
+  if (!(await nonRecursiveList(context, destination).isEmpty)) {
     if (!options.overwrite) {
       throw FileSystemException.alreadyExists(destination);
     }
   } else {
     // 如果目标目录不存在，则创建它
     await recursiveCreateDirectory(
+      context,
       destination.parent!,
       options: const CreateDirectoryOptions(createParents: true),
     );
@@ -142,25 +157,33 @@ Future<void> recursiveCopy({
     seen.add(currentSource);
 
     await for (final status in nonRecursiveList(
+      context,
       currentSource,
       options: const ListOptions(recursive: true),
     )) {
       if (status.isDirectory) {
         final newDest = destination.join(status.path.filename!);
         await recursiveCreateDirectory(
+          context,
           newDest,
           options: const CreateDirectoryOptions(createParents: true),
         );
         queue.add(status.path);
       } else {
         final newDest = destination.join(status.path.filename!);
-        await nonRecursiveCopyFile(status.path, newDest, options: options);
+        await nonRecursiveCopyFile(
+          context,
+          status.path,
+          newDest,
+          options: options,
+        );
       }
     }
   }
 }
 
 Future<void> copyFileByReadAndWrite(
+  FileSystemContext context,
   Path source,
   Path destination, {
   required Future<StreamSink<List<int>>> Function(
@@ -184,14 +207,15 @@ Future<void> copyFileByReadAndWrite(
 
 mixin FileSystemHelper on IFileSystem {
   /// 基于非递归list实现支持递归的list
-  Stream<FileStatus> listImplByNonRecursive({
+  Stream<FileStatus> listImplByNonRecursive(
+    FileSystemContext context, {
     required Stream<FileStatus> Function(Path path, {ListOptions options})
     nonRecursiveList,
     required Path path,
     required ListOptions options,
   }) async* {
     // 检查路径是否存在
-    final statRes = await stat(path);
+    final statRes = await stat(context, path);
     if (statRes == null) {
       throw FileSystemException.notFound(path);
     }
@@ -199,6 +223,7 @@ mixin FileSystemHelper on IFileSystem {
       throw FileSystemException.notADirectory(path);
     }
     yield* recursiveList(
+      context,
       nonRecursiveList: nonRecursiveList,
       path: path,
       options: options,
@@ -206,16 +231,18 @@ mixin FileSystemHelper on IFileSystem {
   }
 
   /// 基于非递归createDirectory实现支持递归的createDirectory
-  Future<void> createDirectoryImplByNonRecursive({
+  Future<void> createDirectoryImplByNonRecursive(
+    FileSystemContext context, {
     required Future<void> Function(Path path, {CreateDirectoryOptions options})
     nonRecursiveCreateDirectory,
     required Path path,
     required CreateDirectoryOptions options,
   }) async {
     // 检查路径是否存在
-    final statRes = await stat(path);
+    final statRes = await stat(context, path);
     if (statRes == null) {
       await recursiveCreateDirectory(
+        context,
         nonRecursiveCreateDirectory: nonRecursiveCreateDirectory,
         path: path,
         options: options,
@@ -233,7 +260,8 @@ mixin FileSystemHelper on IFileSystem {
     }
   }
 
-  Future<void> deleteImplByNonRecursive({
+  Future<void> deleteImplByNonRecursive(
+    FileSystemContext context, {
     required Future<void> Function(Path path, {DeleteOptions options})
     nonRecursiveDelete,
     required Stream<FileStatus> Function(Path path, {ListOptions options})
@@ -241,14 +269,14 @@ mixin FileSystemHelper on IFileSystem {
     required Path path,
     required DeleteOptions options,
   }) async {
-    final statRes = await stat(path);
+    final statRes = await stat(context, path);
     if (statRes == null) {
       // 如果目标路径找不到则报错
       throw FileSystemException.notFound(path);
     } else {
       if (statRes.isDirectory) {
         // 目标是目录
-        final emptyDir = await list(path).isEmpty;
+        final emptyDir = await list(context, path).isEmpty;
         if (emptyDir) {
           // 空目录可以直接删除
           await nonRecursiveDelete(path, options: options);
@@ -258,6 +286,7 @@ mixin FileSystemHelper on IFileSystem {
           } else {
             // 递归删除目录
             await recursiveDelete(
+              context,
               nonRecursiveDelete: nonRecursiveDelete,
               nonRecursiveList: nonRecursiveList,
               path: path,
@@ -272,28 +301,38 @@ mixin FileSystemHelper on IFileSystem {
     }
   }
 
-  Future<void> copyImplByNonRecursive({
+  Future<void> copyImplByNonRecursive(
+    FileSystemContext context, {
     required Path source,
     required Path destination,
     required CopyOptions options,
     required Future<void> Function(
+      FileSystemContext context,
       Path source,
       Path destination, {
       CopyOptions options,
     })
     nonRecursiveCopyFile,
-    required Stream<FileStatus> Function(Path path, {ListOptions options})
+    required Stream<FileStatus> Function(
+      FileSystemContext context,
+      Path path, {
+      ListOptions options,
+    })
     nonRecursiveList,
-    required Future<void> Function(Path path, {CreateDirectoryOptions options})
+    required Future<void> Function(
+      FileSystemContext context,
+      Path path, {
+      CreateDirectoryOptions options,
+    })
     nonRecursiveCreateDirectory,
   }) async {
     // 检查源是否存在
-    final srcStat = await stat(source);
+    final srcStat = await stat(context, source);
     if (srcStat == null) {
       throw FileSystemException.notFound(source);
     }
     // 检查目标是否已存在
-    final destStat = await stat(destination);
+    final destStat = await stat(context, destination);
     if (destStat == null) {
       if (srcStat.isDirectory) {
         // 源是目录，目标不存在
@@ -303,6 +342,7 @@ mixin FileSystemHelper on IFileSystem {
         }
         // 递归复制目录
         await recursiveCopy(
+          context,
           source: source,
           destination: destination,
           options: options,
@@ -314,11 +354,16 @@ mixin FileSystemHelper on IFileSystem {
         // 源是文件，目标不存在
         // 正常的文件复制到目标所在的文件夹，如果目标所在的文件夹不存在，则报错NotFound
         final destDir = destination.parent;
-        if (destDir != null && !(await exists(destDir))) {
+        if (destDir != null && !(await exists(context, destDir))) {
           throw FileSystemException.notFound(destDir);
         }
         // 如果目标目录存在，则复制到目标目录上
-        await nonRecursiveCopyFile(source, destination, options: options);
+        await nonRecursiveCopyFile(
+          context,
+          source,
+          destination,
+          options: options,
+        );
       }
     } else {
       if (srcStat.isDirectory) {
@@ -330,6 +375,7 @@ mixin FileSystemHelper on IFileSystem {
           }
           // 递归复制目录
           await recursiveCopy(
+            context,
             source: source,
             destination: destination,
             options: options,
@@ -347,32 +393,43 @@ mixin FileSystemHelper on IFileSystem {
           // 源是文件，目标是目录，且目标已存在
           // 将文件复制到目标目录下
           final destPath = destination.join(source.filename!);
-          await nonRecursiveCopyFile(source, destPath, options: options);
+          await nonRecursiveCopyFile(
+            context,
+            source,
+            destPath,
+            options: options,
+          );
         } else {
           // 源和目标都是文件，且目标已存在
           if (!options.overwrite) {
             throw FileSystemException.alreadyExists(destination);
           }
           // 如果允许覆盖，则直接复制
-          await nonRecursiveCopyFile(source, destination, options: options);
+          await nonRecursiveCopyFile(
+            context,
+            source,
+            destination,
+            options: options,
+          );
         }
       }
     }
   }
 
   Future<void> preOpenWriteCheck(
+    FileSystemContext context,
     Path path, {
     WriteOptions options = const WriteOptions(),
   }) async {
     // 检查文件是否已存在且不允许覆盖
-    final statRes = await stat(path);
+    final statRes = await stat(context, path);
     if (statRes == null) {
       // 确保父目录存在
       final parentDir = path.parent;
       if (parentDir == null) {
         throw FileSystemException.notFound(path);
       }
-      final parentStat = await stat(parentDir);
+      final parentStat = await stat(context, parentDir);
       if (parentStat == null) {
         throw FileSystemException.notFound(parentDir);
       }
@@ -402,11 +459,12 @@ mixin FileSystemHelper on IFileSystem {
   }
 
   Future<void> preOpenReadCheck(
+    FileSystemContext context,
     Path path, {
     ReadOptions options = const ReadOptions(),
   }) async {
     // 检查文件是否存在
-    final statRes = await stat(path);
+    final statRes = await stat(context, path);
     if (statRes == null) {
       throw FileSystemException.notFound(path);
     }
@@ -419,21 +477,23 @@ mixin FileSystemHelper on IFileSystem {
   /// 检查是否存在
   @override
   Future<bool> exists(
+    FileSystemContext context,
     Path path, {
     ExistsOptions options = const ExistsOptions(),
   }) async {
-    final status = await stat(path);
+    final status = await stat(context, path);
     return status != null;
   }
 
   /// 读取全部文件内容
   @override
   Future<Uint8List> readAsBytes(
+    FileSystemContext context,
     Path path, {
     ReadOptions options = const ReadOptions(),
   }) async {
     final buffer = BytesBuilder();
-    await for (final chunk in openRead(path, options: options)) {
+    await for (final chunk in openRead(context, path, options: options)) {
       buffer.add(chunk);
     }
     return buffer.takeBytes();
@@ -442,11 +502,12 @@ mixin FileSystemHelper on IFileSystem {
   /// 覆盖写入全部文件内容
   @override
   Future<void> writeBytes(
+    FileSystemContext context,
     Path path,
     Uint8List data, {
     WriteOptions options = const WriteOptions(),
   }) {
-    return openWrite(path, options: options).then((sink) {
+    return openWrite(context, path, options: options).then((sink) {
       sink.add(data);
       return sink.close();
     });
@@ -455,11 +516,13 @@ mixin FileSystemHelper on IFileSystem {
   /// 移动文件/目录
   @override
   Future<void> move(
+    FileSystemContext context,
     Path source,
     Path destination, {
     MoveOptions options = const MoveOptions(),
   }) async {
     await copy(
+      context,
       source,
       destination,
       options: CopyOptions(
@@ -467,6 +530,10 @@ mixin FileSystemHelper on IFileSystem {
         recursive: options.recursive,
       ),
     );
-    await delete(source, options: DeleteOptions(recursive: options.recursive));
+    await delete(
+      context,
+      source,
+      options: DeleteOptions(recursive: options.recursive),
+    );
   }
 }
