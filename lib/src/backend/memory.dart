@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import '../abstract/context.dart';
 import '../abstract/index.dart';
-import '../abstract/logger.dart';
 import '../helper/filesystem_helper.dart';
 import '../helper/mime_type_helper.dart';
 

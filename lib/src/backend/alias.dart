@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:vfs_framework/src/abstract/context.dart';
 
 import '../abstract/index.dart';
 

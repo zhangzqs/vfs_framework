@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
-import 'package:vfs_framework/src/abstract/context.dart';
 import 'package:vfs_framework/src/backend/webdav/propfind_xml.dart';
 import 'package:vfs_framework/src/backend/webdav/webdav_dio.dart';
 import 'package:vfs_framework/src/helper/filesystem_helper.dart';

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
-import 'package:vfs_framework/src/abstract/context.dart';
 import '../abstract/index.dart';
 import '../helper/filesystem_helper.dart';
 import '../helper/mime_type_helper.dart';
