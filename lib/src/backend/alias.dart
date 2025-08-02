@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:logging/logging.dart';
+import 'package:vfs_framework/src/abstract/context.dart';
 
 import '../abstract/index.dart';
 
@@ -11,30 +11,23 @@ class AliasFileSystem extends IFileSystem {
     required this.fileSystem,
     Path? subDirectory,
     String loggerName = 'AliasFileSystem',
-  }) : subDirectory = subDirectory ?? Path.rootPath,
-       logger = Logger(loggerName) {
-    logger.info(
-      'AliasFileSystem initialized with subdirectory: '
-      '${subDirectory?.toString() ?? "/"}',
-    );
-  }
+  }) : subDirectory = subDirectory ?? Path.rootPath;
 
-  @override
-  final Logger logger;
   final IFileSystem fileSystem;
   final Path subDirectory;
 
   /// 将alias路径转换为底层文件系统的实际路径
-  Path _convertToRealPath(Path aliasPath) {
+  Path _convertToRealPath(FileSystemContext context, Path aliasPath) {
+    final logger = context.logger;
     if (subDirectory.isRoot) {
-      logger.finest(
+      logger.trace(
         'Converting alias path (root case): $aliasPath -> $aliasPath',
       );
       return aliasPath;
     }
     // 将alias路径与子目录路径合并
     final realPath = Path([...subDirectory.segments, ...aliasPath.segments]);
-    logger.finest(
+    logger.trace(
       'Converting alias path: '
       '$aliasPath -> $realPath (subdirectory: $subDirectory)',
     );
@@ -42,9 +35,10 @@ class AliasFileSystem extends IFileSystem {
   }
 
   /// 将底层文件系统的路径转换为alias路径
-  Path _convertFromRealPath(Path realPath) {
+  Path _convertFromRealPath(FileSystemContext context, Path realPath) {
+    final logger = context.logger;
     if (subDirectory.isRoot) {
-      logger.finest('Converting real path (root case): $realPath -> $realPath');
+      logger.trace('Converting real path (root case): $realPath -> $realPath');
       return realPath;
     }
 
@@ -73,7 +67,7 @@ class AliasFileSystem extends IFileSystem {
     final aliasPath = Path(
       realPath.segments.sublist(subDirectory.segments.length),
     );
-    logger.finest(
+    logger.trace(
       'Converting real path: '
       '$realPath -> $aliasPath (removed subdirectory: $subDirectory)',
     );
@@ -82,68 +76,87 @@ class AliasFileSystem extends IFileSystem {
 
   @override
   Future<void> copy(
+    FileSystemContext context,
     Path source,
     Path destination, {
     CopyOptions options = const CopyOptions(),
   }) {
-    logger.fine(
+    final logger = context.logger;
+    logger.debug(
       'Copying: $source -> $destination '
       '(overwrite: ${options.overwrite}, recursive: ${options.recursive})',
     );
-    final realSource = _convertToRealPath(source);
-    final realDestination = _convertToRealPath(destination);
-    logger.fine('Real paths: $realSource -> $realDestination');
-    return fileSystem.copy(realSource, realDestination, options: options);
+    final realSource = _convertToRealPath(context, source);
+    final realDestination = _convertToRealPath(context, destination);
+    logger.debug('Real paths: $realSource -> $realDestination');
+    return fileSystem.copy(
+      context,
+      realSource,
+      realDestination,
+      options: options,
+    );
   }
 
   @override
   Future<void> createDirectory(
+    FileSystemContext context,
     Path path, {
     CreateDirectoryOptions options = const CreateDirectoryOptions(),
   }) {
-    logger.fine(
+    final logger = context.logger;
+    logger.debug(
       'Creating directory: $path (createParents: ${options.createParents})',
     );
-    final realPath = _convertToRealPath(path);
-    logger.fine('Real path: $realPath');
-    return fileSystem.createDirectory(realPath, options: options);
+    final realPath = _convertToRealPath(context, path);
+    logger.debug('Real path: $realPath');
+    return fileSystem.createDirectory(context, realPath, options: options);
   }
 
   @override
   Future<void> delete(
+    FileSystemContext context,
     Path path, {
     DeleteOptions options = const DeleteOptions(),
   }) {
-    logger.fine('Deleting: $path (recursive: ${options.recursive})');
-    final realPath = _convertToRealPath(path);
-    logger.fine('Real path: $realPath');
-    return fileSystem.delete(realPath, options: options);
+    final logger = context.logger;
+    logger.debug('Deleting: $path (recursive: ${options.recursive})');
+    final realPath = _convertToRealPath(context, path);
+    logger.debug('Real path: $realPath');
+    return fileSystem.delete(context, realPath, options: options);
   }
 
   @override
   Future<bool> exists(
+    FileSystemContext context,
     Path path, {
     ExistsOptions options = const ExistsOptions(),
   }) {
-    logger.finest('Checking existence: $path');
-    final realPath = _convertToRealPath(path);
-    return fileSystem.exists(realPath, options: options);
+    final logger = context.logger;
+    logger.trace('Checking existence: $path');
+    final realPath = _convertToRealPath(context, path);
+    return fileSystem.exists(context, realPath, options: options);
   }
 
   @override
   Stream<FileStatus> list(
+    FileSystemContext context,
     Path path, {
     ListOptions options = const ListOptions(),
   }) async* {
-    logger.fine('Listing directory: $path (recursive: ${options.recursive})');
-    final realPath = _convertToRealPath(path);
-    logger.fine('Real path: $realPath');
+    final logger = context.logger;
+    logger.debug('Listing directory: $path (recursive: ${options.recursive})');
+    final realPath = _convertToRealPath(context, path);
+    logger.debug('Real path: $realPath');
 
     var itemCount = 0;
-    await for (final status in fileSystem.list(realPath, options: options)) {
+    await for (final status in fileSystem.list(
+      context,
+      realPath,
+      options: options,
+    )) {
       itemCount++;
       // 将真实路径转换为alias路径
-      final aliasPath = _convertFromRealPath(status.path);
+      final aliasPath = _convertFromRealPath(context, status.path);
 
       yield FileStatus(
         path: aliasPath,
@@ -152,78 +165,97 @@ class AliasFileSystem extends IFileSystem {
         mimeType: status.mimeType,
       );
     }
-    logger.fine('Listed $itemCount items in directory: $path');
+    logger.debug('Listed $itemCount items in directory: $path');
   }
 
   @override
   Future<void> move(
+    FileSystemContext context,
     Path source,
     Path destination, {
     MoveOptions options = const MoveOptions(),
   }) {
-    logger.fine(
+    final logger = context.logger;
+    logger.debug(
       'Moving: $source -> $destination '
       '(overwrite: ${options.overwrite}, recursive: ${options.recursive})',
     );
-    final realSource = _convertToRealPath(source);
-    final realDestination = _convertToRealPath(destination);
-    logger.fine('Real paths: $realSource -> $realDestination');
-    return fileSystem.move(realSource, realDestination, options: options);
+    final realSource = _convertToRealPath(context, source);
+    final realDestination = _convertToRealPath(context, destination);
+    logger.debug('Real paths: $realSource -> $realDestination');
+    return fileSystem.move(
+      context,
+      realSource,
+      realDestination,
+      options: options,
+    );
   }
 
   @override
   Stream<List<int>> openRead(
+    FileSystemContext context,
     Path path, {
     ReadOptions options = const ReadOptions(),
   }) {
-    logger.fine(
+    final logger = context.logger;
+    logger.debug(
       'Opening read stream: $path '
       '(start: ${options.start}, end: ${options.end})',
     );
-    final realPath = _convertToRealPath(path);
-    logger.fine('Real path: $realPath');
-    return fileSystem.openRead(realPath, options: options);
+    final realPath = _convertToRealPath(context, path);
+    logger.debug('Real path: $realPath');
+    return fileSystem.openRead(context, realPath, options: options);
   }
 
   @override
   Future<StreamSink<List<int>>> openWrite(
+    FileSystemContext context,
     Path path, {
     WriteOptions options = const WriteOptions(),
   }) {
-    logger.fine('Opening write stream: $path (mode: ${options.mode})');
-    final realPath = _convertToRealPath(path);
-    logger.fine('Real path: $realPath');
-    return fileSystem.openWrite(realPath, options: options);
+    final logger = context.logger;
+    logger.debug('Opening write stream: $path (mode: ${options.mode})');
+    final realPath = _convertToRealPath(context, path);
+    logger.debug('Real path: $realPath');
+    return fileSystem.openWrite(context, realPath, options: options);
   }
 
   @override
   Future<Uint8List> readAsBytes(
+    FileSystemContext context,
     Path path, {
     ReadOptions options = const ReadOptions(),
   }) {
-    logger.fine(
+    final logger = context.logger;
+    logger.debug(
       'Reading bytes: $path (start: ${options.start}, end: ${options.end})',
     );
-    final realPath = _convertToRealPath(path);
-    logger.fine('Real path: $realPath');
-    return fileSystem.readAsBytes(realPath, options: options);
+    final realPath = _convertToRealPath(context, path);
+    logger.debug('Real path: $realPath');
+    return fileSystem.readAsBytes(context, realPath, options: options);
   }
 
   @override
   Future<FileStatus?> stat(
+    FileSystemContext context,
     Path path, {
     StatOptions options = const StatOptions(),
   }) async {
-    logger.finest('Getting status: $path');
-    final realPath = _convertToRealPath(path);
-    final realStatus = await fileSystem.stat(realPath, options: options);
+    final logger = context.logger;
+    logger.trace('Getting status: $path');
+    final realPath = _convertToRealPath(context, path);
+    final realStatus = await fileSystem.stat(
+      context,
+      realPath,
+      options: options,
+    );
 
     if (realStatus == null) {
-      logger.finest('Status not found: $path');
+      logger.trace('Status not found: $path');
       return null;
     }
 
-    logger.finest(
+    logger.trace(
       'Status found: $path (isDirectory: ${realStatus.isDirectory}, '
       'size: ${realStatus.size})',
     );
@@ -238,15 +270,17 @@ class AliasFileSystem extends IFileSystem {
 
   @override
   Future<void> writeBytes(
+    FileSystemContext context,
     Path path,
     Uint8List data, {
     WriteOptions options = const WriteOptions(),
   }) {
-    logger.fine(
+    final logger = context.logger;
+    logger.debug(
       'Writing bytes: $path (${data.length} bytes, mode: ${options.mode})',
     );
-    final realPath = _convertToRealPath(path);
-    logger.fine('Real path: $realPath');
-    return fileSystem.writeBytes(realPath, data, options: options);
+    final realPath = _convertToRealPath(context, path);
+    logger.debug('Real path: $realPath');
+    return fileSystem.writeBytes(context, realPath, data, options: options);
   }
 }
