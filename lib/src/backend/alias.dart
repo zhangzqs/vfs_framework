@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-
 import '../abstract/index.dart';
 
 /// 用于把另一个文件系统里的某个子文件夹作为一个新文件系统
