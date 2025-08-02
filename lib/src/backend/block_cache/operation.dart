@@ -258,7 +258,7 @@ class CacheOperation {
 
     // 如果块的起始位置已经超出文件大小，返回空数据
     if (blockStart >= fileSize) {
-      logger.finest(
+      logger.trace(
         'Block $blockIdx starts beyond file size for ${path.toString()}: '
         'blockStart=$blockStart, fileSize=$fileSize',
       );
