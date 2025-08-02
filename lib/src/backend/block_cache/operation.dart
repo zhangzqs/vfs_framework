@@ -3,14 +3,12 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
-import 'package:logging/logging.dart';
 
 import '../../abstract/index.dart';
 import 'metadata.dart';
 
 class CacheOperation {
   CacheOperation({
-    required this.logger,
     required this.originFileSystem,
     required this.cacheFileSystem,
     required this.cacheDir,
@@ -18,7 +16,6 @@ class CacheOperation {
     this.readAheadBlocks = 2, // 默认预读2个块
     this.enableReadAhead = true, // 默认启用预读
   });
-  final Logger logger;
   final IFileSystem originFileSystem;
   final IFileSystem cacheFileSystem;
   final Path cacheDir;
@@ -31,7 +28,8 @@ class CacheOperation {
   final Map<String, int> _lastAccessedBlock = {}; // 记录每个文件最后访问的块索引
 
   /// 基于SHA256生成文件路径的hash值，16个字符
-  String _generatePathHash(Path path) {
+  String _generatePathHash(FileSystemContext context, Path path) {
+    final logger = context.logger;
     // hash为长度为16的字符串
     final pathString = path.toString();
     final bytes = utf8.encode(pathString);
@@ -39,13 +37,14 @@ class CacheOperation {
 
     // 使用SHA-256的前16位作为hash值，大大降低冲突概率
     final hash = digest.toString().substring(0, 16);
-    logger.finest('Generated hash for ${path.toString()}: $hash');
+    logger.trace('Generated hash for ${path.toString()}: $hash');
     return hash;
   }
 
   /// 在cacheDir中，针对srcPath构建分层缓存目录路径，双层目录结构，有利于文件系统查询性能
-  Path _buildCacheHashDir(Path path) {
-    final hash = _generatePathHash(path);
+  Path _buildCacheHashDir(FileSystemContext context, Path path) {
+    final logger = context.logger;
+    final hash = _generatePathHash(context, path);
     // 使用前2位作为第一层目录 (每个level1下4096种可能)
     final level1 = hash.substring(0, 3);
     // 使用第3-4位作为第二层目录 (每个level2下4096种可能)
@@ -55,7 +54,7 @@ class CacheOperation {
     // 构建分层路径: cacheDir/abc/def/1234ef567890/
     final hierarchicalPath = cacheDir.join(level1).join(level2).join(level3);
 
-    logger.finest(
+    logger.trace(
       'Built hierarchical cache path for hash $hash: '
       '${hierarchicalPath.toString()}',
     );
@@ -64,13 +63,16 @@ class CacheOperation {
 
   /// 实现块缓存的读取
   Stream<List<int>> openReadWithBlockCache(
+    FileSystemContext context,
     Path path,
     ReadOptions options,
   ) async* {
-    logger.finest('Starting block-cached read for ${path.toString()}');
+    final logger = context.logger;
+
+    logger.trace('Starting block-cached read for ${path.toString()}');
 
     // 获取文件状态信息
-    final fileStatus = await originFileSystem.stat(path);
+    final fileStatus = await originFileSystem.stat(context, path);
     if (fileStatus == null) {
       throw FileSystemException.notFound(path);
     }
@@ -79,7 +81,7 @@ class CacheOperation {
     }
     final fileSize = fileStatus.size ?? 0;
     if (fileSize == 0) {
-      logger.finest('File is empty: ${path.toString()}');
+      logger.trace('File is empty: ${path.toString()}');
       return; // 空文件直接返回
     }
     // 计算读取范围
@@ -99,13 +101,13 @@ class CacheOperation {
     final endBlockIdx = (endOffset - 1) ~/ blockSize;
     final totalBlocks = endBlockIdx - startBlockIdx + 1;
 
-    logger.finest(
+    logger.trace(
       'Reading ${path.toString()}: blocks $startBlockIdx-$endBlockIdx '
       '($totalBlocks blocks)',
     );
 
     // 生成文件路径的hash
-    final cacheHashDir = _buildCacheHashDir(path);
+    final cacheHashDir = _buildCacheHashDir(context, path);
 
     // 逐块读取数据
     var currentOffset = startOffset;
@@ -115,7 +117,12 @@ class CacheOperation {
       if (remainingBytes <= 0) break;
 
       // 获取当前块的数据
-      final blockData = await _getBlockData(cacheHashDir, blockIdx, path);
+      final blockData = await _getBlockData(
+        context,
+        cacheHashDir,
+        blockIdx,
+        path,
+      );
 
       // 计算当前块内的偏移量和读取长度
       final blockStartOffset = blockIdx * blockSize;
@@ -134,15 +141,18 @@ class CacheOperation {
       remainingBytes -= bytesToRead;
     }
 
-    logger.finest('Completed block-cached read for ${path.toString()}');
+    logger.trace('Completed block-cached read for ${path.toString()}');
   }
 
   /// 获取指定块的数据（带缓存和预读）
   Future<Uint8List> _getBlockData(
+    FileSystemContext context,
     Path cacheHashDir,
     int blockIdx,
     Path originalPath,
   ) async {
+    final logger = context.logger;
+
     // 构建分层缓存路径：<cacheHashDir>/blocks/<blockIdx> 和 <cacheHashDir>/meta.json
     final cacheBlocksDir = cacheHashDir.join('blocks');
     final cacheBlockPath = cacheBlocksDir.join(blockIdx.toString());
@@ -150,20 +160,25 @@ class CacheOperation {
 
     try {
       // 首先检查缓存是否存在
-      if (await cacheFileSystem.exists(cacheBlockPath)) {
+      if (await cacheFileSystem.exists(context, cacheBlockPath)) {
         // 验证缓存完整性和hash冲突
-        if (await _validateCacheIntegrity(cacheMetaPath, originalPath)) {
+        if (await _validateCacheIntegrity(
+          context,
+          cacheMetaPath,
+          originalPath,
+        )) {
           final cachedData = await _readFullBlock(
+            context,
             cacheFileSystem,
             cacheBlockPath,
           );
           if (cachedData != null) {
-            logger.finest(
+            logger.trace(
               'Cache hit for ${originalPath.toString()}, block $blockIdx',
             );
 
             // 触发预读
-            _triggerReadAhead(originalPath, blockIdx);
+            _triggerReadAhead(context, originalPath, blockIdx);
 
             return cachedData;
           }
@@ -172,19 +187,24 @@ class CacheOperation {
             'Cache integrity check failed for ${originalPath.toString()}, '
             'possible hash collision detected, invalidating cache',
           );
-          await invalidateCache(originalPath);
+          await invalidateCache(context, originalPath);
         }
       }
 
       // 缓存不存在或验证失败，从原始文件系统读取
-      logger.finest(
+      logger.trace(
         'Cache miss for ${originalPath.toString()}, block $blockIdx, '
         'reading from origin',
       );
-      final blockData = await _readBlockFromOrigin(originalPath, blockIdx);
+      final blockData = await _readBlockFromOrigin(
+        context,
+        originalPath,
+        blockIdx,
+      );
 
       // 异步写入缓存（不阻塞读取）
       _writeToCacheAsync(
+        context,
         cacheHashDir,
         cacheBlocksDir,
         cacheBlockPath,
@@ -195,7 +215,7 @@ class CacheOperation {
       );
 
       // 触发预读
-      _triggerReadAhead(originalPath, blockIdx);
+      _triggerReadAhead(context, originalPath, blockIdx);
 
       return blockData;
     } catch (e) {
@@ -203,21 +223,31 @@ class CacheOperation {
         'Error reading block cache for ${originalPath.toString()}: $e',
       );
       // 缓存读取失败，回退到原始文件系统
-      final blockData = await _readBlockFromOrigin(originalPath, blockIdx);
+      final blockData = await _readBlockFromOrigin(
+        context,
+        originalPath,
+        blockIdx,
+      );
 
       // 即使出错也尝试触发预读
-      _triggerReadAhead(originalPath, blockIdx);
+      _triggerReadAhead(context, originalPath, blockIdx);
 
       return blockData;
     }
   }
 
   /// 从原始文件系统读取指定块
-  Future<Uint8List> _readBlockFromOrigin(Path path, int blockIdx) async {
+  Future<Uint8List> _readBlockFromOrigin(
+    FileSystemContext context,
+    Path path,
+    int blockIdx,
+  ) async {
+    final logger = context.logger;
+
     final blockStart = blockIdx * blockSize;
 
     // 获取文件大小以确保不会读取超出文件末尾的数据
-    final fileStatus = await originFileSystem.stat(path);
+    final fileStatus = await originFileSystem.stat(context, path);
     final fileSize = fileStatus?.size ?? 0;
 
     // 计算实际的读取结束位置，不超过文件大小
@@ -225,17 +255,23 @@ class CacheOperation {
 
     final readOptions = ReadOptions(start: blockStart, end: blockEnd);
 
-    logger.finest(
+    logger.trace(
       'Reading block $blockIdx from origin for ${path.toString()}: '
       'range $blockStart-$blockEnd (fileSize: $fileSize)',
     );
-    return originFileSystem.readAsBytes(path, options: readOptions);
+    return originFileSystem.readAsBytes(context, path, options: readOptions);
   }
 
   /// 从缓存文件系统读取完整块
-  Future<Uint8List?> _readFullBlock(IFileSystem filesystem, Path path) async {
+  Future<Uint8List?> _readFullBlock(
+    FileSystemContext context,
+    IFileSystem filesystem,
+    Path path,
+  ) async {
+    final logger = context.logger;
+
     try {
-      return await filesystem.readAsBytes(path);
+      return await filesystem.readAsBytes(context, path);
     } catch (e) {
       logger.warning('Failed to read cached block ${path.toString()}: $e');
       return null; // 读取失败返回null
@@ -244,6 +280,7 @@ class CacheOperation {
 
   /// 异步写入缓存（不阻塞主流程）
   void _writeToCacheAsync(
+    FileSystemContext context,
     Path cacheHashDir,
     Path cacheBlocksDir,
     Path cacheBlockPath,
@@ -252,19 +289,23 @@ class CacheOperation {
     int blockIdx,
     Uint8List data,
   ) {
+    final logger = context.logger;
+
     // 使用Future.microtask确保不阻塞当前操作
     Future.microtask(() async {
       try {
         // 确保缓存目录结构存在
-        if (!await cacheFileSystem.exists(cacheHashDir)) {
+        if (!await cacheFileSystem.exists(context, cacheHashDir)) {
           await cacheFileSystem.createDirectory(
+            context,
             cacheHashDir,
             options: const CreateDirectoryOptions(createParents: true),
           );
         }
 
-        if (!await cacheFileSystem.exists(cacheBlocksDir)) {
+        if (!await cacheFileSystem.exists(context, cacheBlocksDir)) {
           await cacheFileSystem.createDirectory(
+            context,
             cacheBlocksDir,
             options: const CreateDirectoryOptions(createParents: true),
           );
@@ -272,6 +313,7 @@ class CacheOperation {
 
         // 写入块数据
         final sink = await cacheFileSystem.openWrite(
+          context,
           cacheBlockPath,
           options: const WriteOptions(mode: WriteMode.overwrite),
         );
@@ -280,9 +322,14 @@ class CacheOperation {
         await sink.close();
 
         // 更新或创建meta.json文件
-        await _updateCacheMetadata(cacheMetaPath, originalPath, blockIdx);
+        await _updateCacheMetadata(
+          context,
+          cacheMetaPath,
+          originalPath,
+          blockIdx,
+        );
 
-        logger.finest(
+        logger.trace(
           'Cache written successfully for ${originalPath.toString()}, '
           'block $blockIdx',
         );
@@ -297,18 +344,24 @@ class CacheOperation {
   }
 
   /// 验证缓存完整性，防止hash冲突
-  Future<bool> _validateCacheIntegrity(Path metaPath, Path originalPath) async {
+  Future<bool> _validateCacheIntegrity(
+    FileSystemContext context,
+    Path metaPath,
+    Path originalPath,
+  ) async {
+    final logger = context.logger;
+
     try {
-      final metadata = await _readCacheMetadata(metaPath);
+      final metadata = await _readCacheMetadata(context, metaPath);
       if (metadata == null) {
-        logger.finest(
+        logger.trace(
           'No metadata file found for cache validation: ${metaPath.toString()}',
         );
         return false;
       }
 
       // 获取原文件的状态信息进行验证
-      final originalStat = await originFileSystem.stat(originalPath);
+      final originalStat = await originFileSystem.stat(context, originalPath);
       if (originalStat == null) {
         logger.warning(
           'Original file does not exist: ${originalPath.toString()}',
@@ -331,7 +384,7 @@ class CacheOperation {
         return false;
       }
 
-      logger.finest(
+      logger.trace(
         'Cache validation passed for ${originalPath.toString()}, '
         'stats: ${metadata.cacheStats}',
       );
@@ -343,14 +396,23 @@ class CacheOperation {
   }
 
   /// 读取缓存元数据
-  Future<CacheMetadata?> _readCacheMetadata(Path metaPath) async {
+  Future<CacheMetadata?> _readCacheMetadata(
+    FileSystemContext context,
+    Path metaPath,
+  ) async {
+    final logger = context.logger;
+
     try {
-      if (!await cacheFileSystem.exists(metaPath)) {
+      if (!await cacheFileSystem.exists(context, metaPath)) {
         return null;
       }
 
       final metaJson =
-          json.decode(utf8.decode(await cacheFileSystem.readAsBytes(metaPath)))
+          json.decode(
+                utf8.decode(
+                  await cacheFileSystem.readAsBytes(context, metaPath),
+                ),
+              )
               as Map<String, dynamic>;
       return CacheMetadata.fromJson(metaJson);
     } catch (e) {
@@ -363,13 +425,16 @@ class CacheOperation {
 
   /// 更新缓存元数据
   Future<void> _updateCacheMetadata(
+    FileSystemContext context,
     Path metaPath,
     Path originalPath,
     int blockIdx,
   ) async {
+    final logger = context.logger;
+
     try {
       // 获取原文件信息
-      final originalStat = await originFileSystem.stat(originalPath);
+      final originalStat = await originFileSystem.stat(context, originalPath);
       if (originalStat == null) {
         logger.warning(
           'Cannot get original file stat for metadata: '
@@ -384,7 +449,7 @@ class CacheOperation {
       CacheMetadata metadata;
 
       // 如果元数据文件已存在，先读取现有数据
-      final existingMetadata = await _readCacheMetadata(metaPath);
+      final existingMetadata = await _readCacheMetadata(context, metaPath);
       if (existingMetadata != null) {
         metadata = existingMetadata.addCachedBlock(blockIdx);
       } else {
@@ -404,6 +469,7 @@ class CacheOperation {
       final metaBytes = utf8.encode(metaJson);
 
       final sink = await cacheFileSystem.openWrite(
+        context,
         metaPath,
         options: const WriteOptions(mode: WriteMode.overwrite),
       );
@@ -411,7 +477,7 @@ class CacheOperation {
       sink.add(metaBytes);
       await sink.close();
 
-      logger.finest(
+      logger.trace(
         'Cache metadata updated for ${originalPath.toString()}, '
         'block $blockIdx, stats: ${metadata.cacheStats}',
       );
@@ -422,31 +488,34 @@ class CacheOperation {
   }
 
   /// 使指定文件的缓存失效
-  Future<void> invalidateCache(Path path) async {
-    try {
-      final cacheHashDir = _buildCacheHashDir(path);
+  Future<void> invalidateCache(FileSystemContext context, Path path) async {
+    final logger = context.logger;
 
-      logger.fine(
+    try {
+      final cacheHashDir = _buildCacheHashDir(context, path);
+
+      logger.debug(
         'Invalidating cache for path: ${path.toString()}, '
         'cache dir: ${cacheHashDir.toString()}',
       );
 
       // 清理预读状态
-      _cleanupReadAheadState(path);
+      _cleanupReadAheadState(context, path);
 
       // 检查缓存目录是否存在
-      if (await cacheFileSystem.exists(cacheHashDir)) {
+      if (await cacheFileSystem.exists(context, cacheHashDir)) {
         // 删除整个hash目录（包含blocks子目录和meta.json文件）
         await cacheFileSystem.delete(
+          context,
           cacheHashDir,
           options: const DeleteOptions(recursive: true),
         );
-        logger.fine('Cache invalidated successfully for: ${path.toString()}');
+        logger.debug('Cache invalidated successfully for: ${path.toString()}');
 
         // 尝试清理空的父级目录
-        await _cleanupEmptyParentDirs(cacheHashDir);
+        await _cleanupEmptyParentDirs(context, cacheHashDir);
       } else {
-        logger.finest('No cache found to invalidate for: ${path.toString()}');
+        logger.trace('No cache found to invalidate for: ${path.toString()}');
       }
     } catch (e) {
       logger.warning('Failed to invalidate cache for ${path.toString()}: $e');
@@ -455,33 +524,40 @@ class CacheOperation {
   }
 
   /// 清理空的父级目录（避免留下大量空目录）
-  Future<void> _cleanupEmptyParentDirs(Path cacheHashDir) async {
+  Future<void> _cleanupEmptyParentDirs(
+    FileSystemContext context,
+    Path cacheHashDir,
+  ) async {
+    final logger = context.logger;
+
     try {
       // 获取父级目录路径
       final level2Dir = cacheHashDir.parent; // xx/yy/ 目录
       final level1Dir = level2Dir?.parent; // xx/ 目录
 
-      if (level2Dir != null && await cacheFileSystem.exists(level2Dir)) {
+      if (level2Dir != null &&
+          await cacheFileSystem.exists(context, level2Dir)) {
         // 检查level2目录是否为空
         final level2Items = <FileStatus>[];
-        await for (final item in cacheFileSystem.list(level2Dir)) {
+        await for (final item in cacheFileSystem.list(context, level2Dir)) {
           level2Items.add(item);
         }
 
         if (level2Items.isEmpty) {
-          await cacheFileSystem.delete(level2Dir);
-          logger.finest('Cleaned up empty level2 dir: ${level2Dir.toString()}');
+          await cacheFileSystem.delete(context, level2Dir);
+          logger.trace('Cleaned up empty level2 dir: ${level2Dir.toString()}');
 
           // 检查level1目录是否也为空
-          if (level1Dir != null && await cacheFileSystem.exists(level1Dir)) {
+          if (level1Dir != null &&
+              await cacheFileSystem.exists(context, level1Dir)) {
             final level1Items = <FileStatus>[];
-            await for (final item in cacheFileSystem.list(level1Dir)) {
+            await for (final item in cacheFileSystem.list(context, level1Dir)) {
               level1Items.add(item);
             }
 
             if (level1Items.isEmpty) {
-              await cacheFileSystem.delete(level1Dir);
-              logger.finest(
+              await cacheFileSystem.delete(context, level1Dir);
+              logger.trace(
                 'Cleaned up empty level1 dir: ${level1Dir.toString()}',
               );
             }
@@ -490,12 +566,18 @@ class CacheOperation {
       }
     } catch (e) {
       // 静默处理清理错误，不影响主要功能
-      logger.finest('Failed to cleanup empty parent dirs: $e');
+      logger.trace('Failed to cleanup empty parent dirs: $e');
     }
   }
 
   /// 触发预读操作
-  void _triggerReadAhead(Path originalPath, int currentBlockIdx) {
+  void _triggerReadAhead(
+    FileSystemContext context,
+    Path originalPath,
+    int currentBlockIdx,
+  ) {
+    final logger = context.logger;
+
     if (!enableReadAhead || readAheadBlocks <= 0) {
       return;
     }
@@ -513,7 +595,7 @@ class CacheOperation {
         currentBlockIdx == lastBlock; // 允许重复访问同一块
 
     if (!isSequentialAccess) {
-      logger.finest(
+      logger.trace(
         'Non-sequential access detected for ${originalPath.toString()}: '
         'last=$lastBlock, current=$currentBlockIdx, skipping read-ahead',
       );
@@ -521,17 +603,23 @@ class CacheOperation {
     }
 
     // 异步执行预读
-    _performReadAhead(originalPath, currentBlockIdx);
+    _performReadAhead(context, originalPath, currentBlockIdx);
   }
 
   /// 执行预读操作
-  void _performReadAhead(Path originalPath, int currentBlockIdx) {
+  void _performReadAhead(
+    FileSystemContext context,
+    Path originalPath,
+    int currentBlockIdx,
+  ) {
+    final logger = context.logger;
+
     Future.microtask(() async {
       final pathString = originalPath.toString();
 
       try {
         // 获取文件大小来确定有效的块范围
-        final fileStatus = await originFileSystem.stat(originalPath);
+        final fileStatus = await originFileSystem.stat(context, originalPath);
         if (fileStatus == null) {
           return;
         }
@@ -543,7 +631,7 @@ class CacheOperation {
         _activeReadAheadTasks[pathString] ??= <int>{};
         final activeTasks = _activeReadAheadTasks[pathString]!;
 
-        final cacheHashDir = _buildCacheHashDir(originalPath);
+        final cacheHashDir = _buildCacheHashDir(context, originalPath);
         final cacheBlocksDir = cacheHashDir.join('blocks');
         final cacheMetaPath = cacheHashDir.join('meta.json');
 
@@ -565,7 +653,7 @@ class CacheOperation {
 
           // 检查缓存是否已存在
           final cacheBlockPath = cacheBlocksDir.join(targetBlockIdx.toString());
-          if (await cacheFileSystem.exists(cacheBlockPath)) {
+          if (await cacheFileSystem.exists(context, cacheBlockPath)) {
             continue;
           }
 
@@ -574,6 +662,7 @@ class CacheOperation {
 
           readAheadTasks.add(
             _readAheadBlock(
+              context,
               originalPath,
               targetBlockIdx,
               cacheHashDir,
@@ -586,14 +675,14 @@ class CacheOperation {
 
         // 等待所有预读任务完成（但不阻塞主流程）
         if (readAheadTasks.isNotEmpty) {
-          logger.finest(
+          logger.trace(
             'Starting read-ahead for ${originalPath.toString()}: '
             '${readAheadTasks.length} blocks after block $currentBlockIdx',
           );
 
           await Future.wait(readAheadTasks);
 
-          logger.finest(
+          logger.trace(
             'Completed read-ahead for ${originalPath.toString()}: '
             '${readAheadTasks.length} blocks',
           );
@@ -606,6 +695,7 @@ class CacheOperation {
 
   /// 预读单个块
   Future<void> _readAheadBlock(
+    FileSystemContext context,
     Path originalPath,
     int blockIdx,
     Path cacheHashDir,
@@ -613,26 +703,34 @@ class CacheOperation {
     Path cacheBlockPath,
     Path cacheMetaPath,
   ) async {
+    final logger = context.logger;
+
     final pathString = originalPath.toString();
 
     try {
-      logger.finest(
+      logger.trace(
         'Read-ahead: fetching block $blockIdx for ${originalPath.toString()}',
       );
 
       // 从原始文件系统读取块数据
-      final blockData = await _readBlockFromOrigin(originalPath, blockIdx);
+      final blockData = await _readBlockFromOrigin(
+        context,
+        originalPath,
+        blockIdx,
+      );
 
       // 确保缓存目录结构存在
-      if (!await cacheFileSystem.exists(cacheHashDir)) {
+      if (!await cacheFileSystem.exists(context, cacheHashDir)) {
         await cacheFileSystem.createDirectory(
+          context,
           cacheHashDir,
           options: const CreateDirectoryOptions(createParents: true),
         );
       }
 
-      if (!await cacheFileSystem.exists(cacheBlocksDir)) {
+      if (!await cacheFileSystem.exists(context, cacheBlocksDir)) {
         await cacheFileSystem.createDirectory(
+          context,
           cacheBlocksDir,
           options: const CreateDirectoryOptions(createParents: true),
         );
@@ -640,6 +738,7 @@ class CacheOperation {
 
       // 写入块数据到缓存
       final sink = await cacheFileSystem.openWrite(
+        context,
         cacheBlockPath,
         options: const WriteOptions(mode: WriteMode.overwrite),
       );
@@ -648,9 +747,14 @@ class CacheOperation {
       await sink.close();
 
       // 更新元数据
-      await _updateCacheMetadata(cacheMetaPath, originalPath, blockIdx);
+      await _updateCacheMetadata(
+        context,
+        cacheMetaPath,
+        originalPath,
+        blockIdx,
+      );
 
-      logger.finest(
+      logger.trace(
         'Read-ahead: successfully cached block $blockIdx '
         'for ${originalPath.toString()}',
       );
@@ -671,11 +775,12 @@ class CacheOperation {
   }
 
   /// 清理预读状态（当文件缓存失效时调用）
-  void _cleanupReadAheadState(Path originalPath) {
+  void _cleanupReadAheadState(FileSystemContext context, Path originalPath) {
+    final logger = context.logger;
     final pathString = originalPath.toString();
     _activeReadAheadTasks.remove(pathString);
     _lastAccessedBlock.remove(pathString);
 
-    logger.finest('Cleaned up read-ahead state for ${originalPath.toString()}');
+    logger.trace('Cleaned up read-ahead state for ${originalPath.toString()}');
   }
 }

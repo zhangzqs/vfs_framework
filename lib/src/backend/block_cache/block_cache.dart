@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:logging/logging.dart';
 import '../../abstract/index.dart';
 import '../../helper/filesystem_helper.dart';
 import 'operation.dart';
@@ -10,12 +9,12 @@ class _CacheInvalidatingSink implements StreamSink<List<int>> {
   _CacheInvalidatingSink({
     required this.originalSink,
     required this.onClose,
-    required this.logger,
+    required this.context,
   });
 
   final StreamSink<List<int>> originalSink;
   final Future<void> Function() onClose;
-  final Logger logger;
+  final FileSystemContext context;
 
   @override
   void add(List<int> data) {
@@ -34,12 +33,13 @@ class _CacheInvalidatingSink implements StreamSink<List<int>> {
 
   @override
   Future<void> close() async {
+    final logger = context.logger;
     try {
       // 先关闭原始Sink
       await originalSink.close();
       // 然后执行缓存失效回调
       await onClose();
-      logger.finest('Write stream closed and cache invalidated');
+      logger.trace('Write stream closed and cache invalidated');
     } catch (e) {
       logger.warning('Error during stream close: $e');
       rethrow;
@@ -58,15 +58,8 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
     int blockSize = 1024 * 1024, // 默认块大小为1MB
     int readAheadBlocks = 2, // 预读
     bool enableReadAhead = true, // 默认启用预读
-    String loggerName = 'BlockCacheFileSystem',
-  }) : logger = Logger(loggerName) {
-    logger.info(
-      'BlockCacheFileSystem initialized with blockSize: $blockSize bytes, '
-      'readAheadBlocks: $readAheadBlocks, enableReadAhead: $enableReadAhead, '
-      'cacheDir: ${cacheDir.toString()}, using hierarchical cache structure',
-    );
+  }) {
     _cacheOperation = CacheOperation(
-      logger: logger,
       originFileSystem: originFileSystem,
       cacheFileSystem: cacheFileSystem,
       cacheDir: cacheDir,
@@ -76,86 +69,97 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
     );
   }
 
-  @override
-  final Logger logger;
   final IFileSystem originFileSystem;
   late final CacheOperation _cacheOperation;
 
   @override
   Future<void> copy(
+    FileSystemContext context,
     Path source,
     Path destination, {
     CopyOptions options = const CopyOptions(),
   }) async {
-    logger.fine('Copying ${source.toString()} to ${destination.toString()}');
-    await originFileSystem.copy(source, destination, options: options);
+    final logger = context.logger;
+    logger.debug('Copying ${source.toString()} to ${destination.toString()}');
+    await originFileSystem.copy(context, source, destination, options: options);
     // 目标文件的缓存可能需要失效
-    await _cacheOperation.invalidateCache(destination);
+    await _cacheOperation.invalidateCache(context, destination);
   }
 
   @override
   Future<void> createDirectory(
+    FileSystemContext context,
     Path path, {
     CreateDirectoryOptions options = const CreateDirectoryOptions(),
   }) {
-    return originFileSystem.createDirectory(path, options: options);
+    return originFileSystem.createDirectory(context, path, options: options);
   }
 
   @override
   Future<void> delete(
+    FileSystemContext context,
     Path path, {
     DeleteOptions options = const DeleteOptions(),
   }) async {
-    logger.fine('Deleting ${path.toString()}');
-    await originFileSystem.delete(path, options: options);
+    final logger = context.logger;
+    logger.debug('Deleting ${path.toString()}');
+    await originFileSystem.delete(context, path, options: options);
     // 删除文件后使其缓存失效
-    await _cacheOperation.invalidateCache(path);
+    await _cacheOperation.invalidateCache(context, path);
   }
 
   @override
   Future<bool> exists(
+    FileSystemContext context,
     Path path, {
     ExistsOptions options = const ExistsOptions(),
   }) {
-    return originFileSystem.exists(path, options: options);
+    return originFileSystem.exists(context, path, options: options);
   }
 
   @override
   Stream<FileStatus> list(
+    FileSystemContext context,
     Path path, {
     ListOptions options = const ListOptions(),
   }) {
-    return originFileSystem.list(path, options: options);
+    return originFileSystem.list(context, path, options: options);
   }
 
   @override
   Future<void> move(
+    FileSystemContext context,
     Path source,
     Path destination, {
     MoveOptions options = const MoveOptions(),
   }) async {
-    logger.fine('Moving ${source.toString()} to ${destination.toString()}');
-    await originFileSystem.move(source, destination, options: options);
+    final logger = context.logger;
+    logger.debug('Moving ${source.toString()} to ${destination.toString()}');
+    await originFileSystem.move(context, source, destination, options: options);
     // 移动操作会影响源文件和目标文件的缓存
-    await _cacheOperation.invalidateCache(source);
-    await _cacheOperation.invalidateCache(destination);
+    await _cacheOperation.invalidateCache(context, source);
+    await _cacheOperation.invalidateCache(context, destination);
   }
 
   @override
   Future<FileStatus?> stat(
+    FileSystemContext context,
     Path path, {
     StatOptions options = const StatOptions(),
   }) {
-    return originFileSystem.stat(path, options: options);
+    return originFileSystem.stat(context, path, options: options);
   }
 
   @override
   Future<StreamSink<List<int>>> openWrite(
+    FileSystemContext context,
     Path path, {
     WriteOptions options = const WriteOptions(),
   }) async {
-    logger.fine('Opening write stream for ${path.toString()}');
+    final logger = context.logger;
+    logger.debug('Opening write stream for ${path.toString()}');
     final originalSink = await originFileSystem.openWrite(
+      context,
       path,
       options: options,
     );
@@ -163,17 +167,19 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
     // 创建一个装饰器Sink，在写入完成后刷新缓存
     return _CacheInvalidatingSink(
       originalSink: originalSink,
-      onClose: () => _cacheOperation.invalidateCache(path),
-      logger: logger,
+      onClose: () => _cacheOperation.invalidateCache(context, path),
+      context: context,
     );
   }
 
   @override
   Stream<List<int>> openRead(
+    FileSystemContext context,
     Path path, {
     ReadOptions options = const ReadOptions(),
   }) {
-    logger.fine('Opening read stream for ${path.toString()} with block cache');
-    return _cacheOperation.openReadWithBlockCache(path, options);
+    final logger = context.logger;
+    logger.debug('Opening read stream for ${path.toString()} with block cache');
+    return _cacheOperation.openReadWithBlockCache(context, path, options);
   }
 }
