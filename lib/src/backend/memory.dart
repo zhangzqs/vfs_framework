@@ -129,7 +129,7 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     _maxBufferSize = 0;
   }
 
-  _MemoryFileEntity? _getEntity(FileSystemContext context, Path path) {
+  _MemoryFileEntity? _getEntity(Context context, Path path) {
     final logger = context.logger;
     logger.trace('Getting entity for path: $path');
     if (path.segments.isEmpty) return _rootDir;
@@ -148,7 +148,7 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
   }
 
   Stream<FileStatus> nonRecursiveList(
-    FileSystemContext context,
+    Context context,
     Path path, {
     ListOptions options = const ListOptions(),
   }) async* {
@@ -172,7 +172,7 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Stream<FileStatus> list(
-    FileSystemContext context,
+    Context context,
     Path path, {
     ListOptions options = const ListOptions(),
   }) {
@@ -188,7 +188,7 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
   }
 
   Stream<FileStatus> _recursiveList(
-    FileSystemContext context,
+    Context context,
     Path path,
     ListOptions options,
   ) async* {
@@ -214,7 +214,7 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
   }
 
   Future<void> nonRecursiveCopyFile(
-    FileSystemContext context,
+    Context context,
     Path source,
     Path destination, {
     CopyOptions options = const CopyOptions(),
@@ -238,7 +238,7 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Future<void> copy(
-    FileSystemContext context,
+    Context context,
     Path source,
     Path destination, {
     CopyOptions options = const CopyOptions(),
@@ -285,7 +285,7 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
   }
 
   Future<void> nonRecursiveCreateDirectory(
-    FileSystemContext context,
+    Context context,
     Path path, {
     CreateDirectoryOptions options = const CreateDirectoryOptions(),
   }) async {
@@ -335,7 +335,7 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Future<void> createDirectory(
-    FileSystemContext context,
+    Context context,
     Path path, {
     CreateDirectoryOptions options = const CreateDirectoryOptions(),
   }) async {
@@ -370,7 +370,7 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Future<void> delete(
-    FileSystemContext context,
+    Context context,
     Path path, {
     DeleteOptions options = const DeleteOptions(),
   }) async {
@@ -416,7 +416,7 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Stream<List<int>> openRead(
-    FileSystemContext context,
+    Context context,
     Path path, {
     ReadOptions options = const ReadOptions(),
   }) async* {
@@ -444,7 +444,7 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Future<StreamSink<List<int>>> openWrite(
-    FileSystemContext context,
+    Context context,
     Path path, {
     WriteOptions options = const WriteOptions(),
   }) async {
@@ -526,7 +526,7 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Future<FileStatus?> stat(
-    FileSystemContext context,
+    Context context,
     Path path, {
     StatOptions options = const StatOptions(),
   }) async {
@@ -559,7 +559,7 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
 
   /// 批量写入文件的优化方法，避免Stream的开销
   Future<void> writeBytesDirect(
-    FileSystemContext context,
+    Context context,
     Path path,
     Uint8List data, {
     WriteOptions options = const WriteOptions(),
@@ -625,7 +625,7 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
 
   /// 高效的文件拷贝方法，直接操作内存
   Future<void> copyDirect(
-    FileSystemContext context,
+    Context context,
     Path source,
     Path destination, {
     bool overwrite = false,

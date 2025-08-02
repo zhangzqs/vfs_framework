@@ -14,7 +14,7 @@ class _CacheInvalidatingSink implements StreamSink<List<int>> {
 
   final StreamSink<List<int>> originalSink;
   final Future<void> Function() onClose;
-  final FileSystemContext context;
+  final Context context;
 
   @override
   void add(List<int> data) {
@@ -74,7 +74,7 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Future<void> copy(
-    FileSystemContext context,
+    Context context,
     Path source,
     Path destination, {
     CopyOptions options = const CopyOptions(),
@@ -88,7 +88,7 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Future<void> createDirectory(
-    FileSystemContext context,
+    Context context,
     Path path, {
     CreateDirectoryOptions options = const CreateDirectoryOptions(),
   }) {
@@ -97,7 +97,7 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Future<void> delete(
-    FileSystemContext context,
+    Context context,
     Path path, {
     DeleteOptions options = const DeleteOptions(),
   }) async {
@@ -110,7 +110,7 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Future<bool> exists(
-    FileSystemContext context,
+    Context context,
     Path path, {
     ExistsOptions options = const ExistsOptions(),
   }) {
@@ -119,7 +119,7 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Stream<FileStatus> list(
-    FileSystemContext context,
+    Context context,
     Path path, {
     ListOptions options = const ListOptions(),
   }) {
@@ -128,7 +128,7 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Future<void> move(
-    FileSystemContext context,
+    Context context,
     Path source,
     Path destination, {
     MoveOptions options = const MoveOptions(),
@@ -143,7 +143,7 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Future<FileStatus?> stat(
-    FileSystemContext context,
+    Context context,
     Path path, {
     StatOptions options = const StatOptions(),
   }) {
@@ -152,7 +152,7 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Future<StreamSink<List<int>>> openWrite(
-    FileSystemContext context,
+    Context context,
     Path path, {
     WriteOptions options = const WriteOptions(),
   }) async {
@@ -174,7 +174,7 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Stream<List<int>> openRead(
-    FileSystemContext context,
+    Context context,
     Path path, {
     ReadOptions options = const ReadOptions(),
   }) {

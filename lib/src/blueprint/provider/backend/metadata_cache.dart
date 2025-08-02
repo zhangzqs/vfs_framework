@@ -28,7 +28,7 @@ class _Config {
 
   Map<String, dynamic> toJson() => _$ConfigToJson(this);
 
-  MetadataCacheFileSystem build(Context ctx) {
+  MetadataCacheFileSystem build(BuildContext ctx) {
     if (originBackend.isEmpty || cacheBackend.isEmpty) {
       throw BlueprintException(
         context: ctx,
@@ -54,7 +54,7 @@ class MetadataCacheFileSystemProvider extends ComponentProvider<IFileSystem> {
 
   @override
   Future<IFileSystem> createComponent(
-    Context ctx,
+    BuildContext ctx,
     Map<String, dynamic> config,
   ) async {
     final cfg = _Config.fromJson(config);

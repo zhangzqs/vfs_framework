@@ -6,9 +6,9 @@ import '../abstract/index.dart';
 
 const _middlewareKey = 'vfs.context';
 
-FileSystemContext mustGetContextFromRequest(Request request) {
+Context mustGetContextFromRequest(Request request) {
   final context = request.context[_middlewareKey];
-  if (context == null || context is! FileSystemContext) {
+  if (context == null || context is! Context) {
     throw StateError('FileSystemContext not found in request');
   }
   return context;
@@ -18,7 +18,11 @@ Middleware contextMiddleware(Logger logger) {
   return (Handler handler) {
     return (Request request) async {
       final requestID = const Uuid().v8();
-      final context = FileSystemContext(logger: logger, operationID: requestID);
+      final context = Context(
+        logger: logger.withMetadata({'requestID': requestID}),
+        operationID: requestID,
+      );
+      logger = context.logger;
 
       // 将上下文添加到请求中
       final newRequest = request.change(
@@ -26,7 +30,14 @@ Middleware contextMiddleware(Logger logger) {
       );
 
       try {
+        logger.trace(
+          'Handling request: ${newRequest.method} ${newRequest.url}',
+        );
         final response = await handler(newRequest);
+        logger.trace(
+          'Request handled: ${newRequest.method} ${newRequest.url} '
+          '-> ${response.statusCode}',
+        );
 
         // 监听响应流完成或错误
         if (response.contentLength == null || response.contentLength! > 0) {

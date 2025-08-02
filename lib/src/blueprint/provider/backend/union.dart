@@ -24,7 +24,7 @@ class _ItemConfig {
 
   Map<String, dynamic> toJson() => _$ItemConfigToJson(this);
 
-  UnionFileSystemItem build(Context ctx) {
+  UnionFileSystemItem build(BuildContext ctx) {
     return UnionFileSystemItem(
       fileSystem: ctx.mustGetComponentByName<IFileSystem>(backend),
       mountPath: Path.fromString(mountPath),
@@ -43,7 +43,7 @@ class _Config {
 
   Map<String, dynamic> toJson() => _$ConfigToJson(this);
 
-  UnionFileSystem build(Context ctx) {
+  UnionFileSystem build(BuildContext ctx) {
     return UnionFileSystem(
       items: items.map((item) => item.build(ctx)).toList(),
     );
@@ -56,7 +56,7 @@ class UnionFileSystemProvider extends ComponentProvider<IFileSystem> {
 
   @override
   Future<IFileSystem> createComponent(
-    Context ctx,
+    BuildContext ctx,
     Map<String, dynamic> config,
   ) async {
     final cfg = _Config.fromJson(config);

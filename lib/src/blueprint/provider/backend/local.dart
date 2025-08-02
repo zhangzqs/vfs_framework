@@ -17,7 +17,7 @@ class _Config {
   final String baseDir;
   Map<String, dynamic> toJson() => _$ConfigToJson(this);
 
-  Future<LocalFileSystem> build(Context ctx) async {
+  Future<LocalFileSystem> build(BuildContext ctx) async {
     if (baseDir.isEmpty) {
       throw BlueprintException(
         context: ctx,
@@ -41,7 +41,7 @@ class LocalFileSystemProvider extends ComponentProvider<IFileSystem> {
 
   @override
   Future<IFileSystem> createComponent(
-    Context ctx,
+    BuildContext ctx,
     Map<String, dynamic> config,
   ) async {
     final cfg = _Config.fromJson(config);

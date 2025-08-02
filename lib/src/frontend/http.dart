@@ -3,28 +3,35 @@ import 'dart:io' as io;
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart';
 import 'package:vfs_framework/src/abstract/index.dart';
+import 'package:vfs_framework/src/helper/context_shelf_middleware.dart';
 
 class HttpServer {
-  HttpServer(this.fs, {this.address = 'localhost', this.port = 8080});
+  HttpServer(
+    this.fs, {
+    this.address = 'localhost',
+    this.port = 8080,
+    Logger? logger,
+  }) : logger = logger ?? Logger.defaultLogger;
 
   final IFileSystem fs;
   io.HttpServer? _server;
   final String address;
   final int port;
+  final Logger logger;
 
   /// 启动HTTP服务器
   Future<io.HttpServer> start() async {
     final handler = const Pipeline()
-        .addMiddleware(logRequests())
+        .addMiddleware(contextMiddleware(logger))
         .addHandler(handleRequest);
 
     _server = await serve(handler, address, port);
-    print('服务器启动在 http://${_server!.address.host}:${_server!.port}');
     return _server!;
   }
 
   /// 路由处理器
   Future<Response> handleRequest(Request request) async {
+    final context = mustGetContextFromRequest(request);
     final uri = request.requestedUri;
     final method = request.method;
     final pathSegments = uri.pathSegments;
@@ -34,25 +41,25 @@ class HttpServer {
         if (pathSegments.isEmpty ||
             (pathSegments.length == 1 && pathSegments[0].isEmpty)) {
           // 根目录列表
-          return await _handleList(Path.rootPath, request);
+          return await _handleList(context, Path.rootPath, request);
         } else {
           final path = Path(pathSegments);
 
           // 检查是否存在查询参数来强制列表操作
           if (request.url.queryParameters.containsKey('list')) {
-            return await _handleList(path, request);
+            return await _handleList(context, path, request);
           }
 
           // 首先检查路径是否存在
-          final status = await fs.stat(path);
+          final status = await fs.stat(context, path);
           if (status == null) {
             return Response.notFound('路径不存在: ${path.toString()}');
           }
 
           if (status.isDirectory) {
-            return await _handleList(path, request);
+            return await _handleList(context, path, request);
           } else {
-            return await _handleGet(path, request);
+            return await _handleGet(context, path, request);
           }
         }
       }
@@ -67,13 +74,17 @@ class HttpServer {
   }
 
   /// 处理文件列表请求
-  Future<Response> _handleList(Path path, Request request) async {
+  Future<Response> _handleList(
+    Context context,
+    Path path,
+    Request request,
+  ) async {
     try {
       final recursive = request.url.queryParameters['recursive'] == 'true';
       final options = ListOptions(recursive: recursive);
 
       final files = <Map<String, dynamic>>[];
-      await for (final fileStatus in fs.list(path, options: options)) {
+      await for (final fileStatus in fs.list(context, path, options: options)) {
         files.add({
           'name': fileStatus.path.filename ?? '/',
           'path': fileStatus.path.toString(),
@@ -115,9 +126,13 @@ class HttpServer {
   }
 
   /// 处理文件下载请求
-  Future<Response> _handleGet(Path path, Request request) async {
+  Future<Response> _handleGet(
+    Context context,
+    Path path,
+    Request request,
+  ) async {
     try {
-      final fileStatus = await fs.stat(path);
+      final fileStatus = await fs.stat(context, path);
       if (fileStatus == null) {
         return Response.notFound('文件不存在: ${path.toString()}');
       }
@@ -146,7 +161,7 @@ class HttpServer {
       }
 
       final readOptions = ReadOptions(start: start, end: end);
-      final stream = fs.openRead(path, options: readOptions);
+      final stream = fs.openRead(context, path, options: readOptions);
 
       final headers = <String, String>{
         'content-type': fileStatus.mimeType ?? 'application/octet-stream',

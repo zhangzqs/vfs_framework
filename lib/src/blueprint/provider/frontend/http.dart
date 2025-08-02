@@ -22,7 +22,7 @@ class _Config {
 
   Map<String, dynamic> toJson() => _$ConfigToJson(this);
 
-  HttpServer build(Context ctx) {
+  HttpServer build(BuildContext ctx) {
     if (backend.isEmpty) {
       throw BlueprintException(
         context: ctx,
@@ -43,7 +43,7 @@ class HttpServerProvider extends ComponentProvider<HttpServer> {
 
   @override
   Future<HttpServer> createComponent(
-    Context ctx,
+    BuildContext ctx,
     Map<String, dynamic> config,
   ) async {
     final cfg = _Config.fromJson(config);
@@ -53,7 +53,7 @@ class HttpServerProvider extends ComponentProvider<HttpServer> {
   }
 
   @override
-  Future<void> close(Context ctx, HttpServer component) async {
+  Future<void> close(BuildContext ctx, HttpServer component) async {
     await component.stop();
   }
 }

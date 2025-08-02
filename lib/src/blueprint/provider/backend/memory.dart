@@ -8,7 +8,7 @@ class MemoryFileSystemProvider extends ComponentProvider<IFileSystem> {
 
   @override
   Future<IFileSystem> createComponent(
-    Context ctx,
+    BuildContext ctx,
     Map<String, dynamic> config,
   ) async {
     return MemoryFileSystem();

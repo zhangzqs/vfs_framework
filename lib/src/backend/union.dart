@@ -24,7 +24,7 @@ class UnionFileSystem extends IFileSystem {
 
   /// 获取路径对应的文件系统项，按优先级排序
   List<UnionFileSystemItem> _getItemsForPath(
-    FileSystemContext context,
+    Context context,
     Path path,
   ) {
     final logger = context.logger;
@@ -57,7 +57,7 @@ class UnionFileSystem extends IFileSystem {
   }
 
   /// 将union路径转换为文件系统内部路径
-  Path _convertPath(FileSystemContext context, Path unionPath, Path mountPath) {
+  Path _convertPath(Context context, Path unionPath, Path mountPath) {
     final logger = context.logger;
 
     if (mountPath.isRoot) return unionPath;
@@ -71,7 +71,7 @@ class UnionFileSystem extends IFileSystem {
 
   /// 获取第一个包含指定路径文件的可读文件系统项（异步版本）
   Future<UnionFileSystemItem?> _getFirstReadableItemAsync(
-    FileSystemContext context,
+    Context context,
     Path path,
   ) async {
     final logger = context.logger;
@@ -107,7 +107,7 @@ class UnionFileSystem extends IFileSystem {
 
   /// 获取第一个可写的文件系统项，优先选择最具体的挂载点
   UnionFileSystemItem? _getFirstWritableItem(
-    FileSystemContext context,
+    Context context,
     Path path,
   ) {
     final logger = context.logger;
@@ -141,7 +141,7 @@ class UnionFileSystem extends IFileSystem {
 
   @override
   Future<void> copy(
-    FileSystemContext context,
+    Context context,
     Path source,
     Path destination, {
     CopyOptions options = const CopyOptions(),
@@ -251,7 +251,7 @@ class UnionFileSystem extends IFileSystem {
 
   @override
   Future<void> createDirectory(
-    FileSystemContext context,
+    Context context,
     Path path, {
     CreateDirectoryOptions options = const CreateDirectoryOptions(),
   }) async {
@@ -283,7 +283,7 @@ class UnionFileSystem extends IFileSystem {
 
   @override
   Future<void> delete(
-    FileSystemContext context,
+    Context context,
     Path path, {
     DeleteOptions options = const DeleteOptions(),
   }) async {
@@ -347,7 +347,7 @@ class UnionFileSystem extends IFileSystem {
 
   @override
   Future<bool> exists(
-    FileSystemContext context,
+    Context context,
     Path path, {
     ExistsOptions options = const ExistsOptions(),
   }) async {
@@ -399,7 +399,7 @@ class UnionFileSystem extends IFileSystem {
 
   @override
   Stream<FileStatus> list(
-    FileSystemContext context,
+    Context context,
     Path path, {
     ListOptions options = const ListOptions(),
   }) async* {
@@ -478,7 +478,7 @@ class UnionFileSystem extends IFileSystem {
 
   @override
   Future<void> move(
-    FileSystemContext context,
+    Context context,
     Path source,
     Path destination, {
     MoveOptions options = const MoveOptions(),
@@ -558,7 +558,7 @@ class UnionFileSystem extends IFileSystem {
 
   @override
   Stream<List<int>> openRead(
-    FileSystemContext context,
+    Context context,
     Path path, {
     ReadOptions options = const ReadOptions(),
   }) async* {
@@ -583,7 +583,7 @@ class UnionFileSystem extends IFileSystem {
 
   @override
   Future<StreamSink<List<int>>> openWrite(
-    FileSystemContext context,
+    Context context,
     Path path, {
     WriteOptions options = const WriteOptions(),
   }) async {
@@ -604,7 +604,7 @@ class UnionFileSystem extends IFileSystem {
 
   @override
   Future<Uint8List> readAsBytes(
-    FileSystemContext context,
+    Context context,
     Path path, {
     ReadOptions options = const ReadOptions(),
   }) async {
@@ -635,7 +635,7 @@ class UnionFileSystem extends IFileSystem {
 
   @override
   Future<FileStatus?> stat(
-    FileSystemContext context,
+    Context context,
     Path path, {
     StatOptions options = const StatOptions(),
   }) async {
@@ -709,7 +709,7 @@ class UnionFileSystem extends IFileSystem {
 
   @override
   Future<void> writeBytes(
-    FileSystemContext context,
+    Context context,
     Path path,
     Uint8List data, {
     WriteOptions options = const WriteOptions(),

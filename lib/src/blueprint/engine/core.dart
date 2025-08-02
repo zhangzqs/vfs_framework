@@ -3,7 +3,7 @@ import 'config.dart';
 class BlueprintException implements Exception {
   BlueprintException(this.message, {this.context});
   final String message;
-  final Context? context;
+  final BuildContext? context;
 
   @override
   String toString() {
@@ -70,7 +70,7 @@ class BlueprintEngine {
     if (provider == null) {
       throw BlueprintException('No provider registered for type ${cfg.type}');
     }
-    final ctx = Context(engine: this, config: cfg);
+    final ctx = BuildContext(engine: this, config: cfg);
     final component = await provider.createComponent(ctx, cfg.config);
     if (component is! T) {
       throw BlueprintException(
@@ -129,7 +129,7 @@ class BlueprintEngine {
     for (final entry in _components.values) {
       try {
         await entry.provider.close(
-          Context(engine: this, config: entry.config),
+          BuildContext(engine: this, config: entry.config),
           entry.component,
         );
       } catch (e) {
@@ -140,8 +140,8 @@ class BlueprintEngine {
   }
 }
 
-class Context {
-  Context({required this.engine, required this.config});
+class BuildContext {
+  BuildContext({required this.engine, required this.config});
   final BlueprintEngine engine;
   final ComponentConfig config;
 
@@ -152,6 +152,6 @@ class Context {
 
 abstract class ComponentProvider<T extends Object> {
   String get type;
-  Future<T> createComponent(Context ctx, Map<String, dynamic> config);
-  Future<void> close(Context ctx, T component) async {}
+  Future<T> createComponent(BuildContext ctx, Map<String, dynamic> config);
+  Future<void> close(BuildContext ctx, T component) async {}
 }

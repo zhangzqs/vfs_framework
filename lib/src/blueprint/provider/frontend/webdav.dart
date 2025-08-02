@@ -23,7 +23,7 @@ class _Config {
 
   Map<String, dynamic> toJson() => _$ConfigToJson(this);
 
-  WebDAVServer build(Context ctx) {
+  WebDAVServer build(BuildContext ctx) {
     if (backend.isEmpty) {
       throw BlueprintException(
         context: ctx,
@@ -44,7 +44,7 @@ class WebDAVServerProvider extends ComponentProvider<WebDAVServer> {
 
   @override
   Future<WebDAVServer> createComponent(
-    Context ctx,
+    BuildContext ctx,
     Map<String, dynamic> config,
   ) async {
     final cfg = _Config.fromJson(config);
@@ -54,7 +54,7 @@ class WebDAVServerProvider extends ComponentProvider<WebDAVServer> {
   }
 
   @override
-  Future<void> close(Context ctx, WebDAVServer component) async {
+  Future<void> close(BuildContext ctx, WebDAVServer component) async {
     await component.stop();
   }
 }

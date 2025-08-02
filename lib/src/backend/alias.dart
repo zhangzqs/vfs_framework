@@ -17,7 +17,7 @@ class AliasFileSystem extends IFileSystem {
   final Path subDirectory;
 
   /// 将alias路径转换为底层文件系统的实际路径
-  Path _convertToRealPath(FileSystemContext context, Path aliasPath) {
+  Path _convertToRealPath(Context context, Path aliasPath) {
     final logger = context.logger;
     if (subDirectory.isRoot) {
       logger.trace(
@@ -35,7 +35,7 @@ class AliasFileSystem extends IFileSystem {
   }
 
   /// 将底层文件系统的路径转换为alias路径
-  Path _convertFromRealPath(FileSystemContext context, Path realPath) {
+  Path _convertFromRealPath(Context context, Path realPath) {
     final logger = context.logger;
     if (subDirectory.isRoot) {
       logger.trace('Converting real path (root case): $realPath -> $realPath');
@@ -76,7 +76,7 @@ class AliasFileSystem extends IFileSystem {
 
   @override
   Future<void> copy(
-    FileSystemContext context,
+    Context context,
     Path source,
     Path destination, {
     CopyOptions options = const CopyOptions(),
@@ -99,7 +99,7 @@ class AliasFileSystem extends IFileSystem {
 
   @override
   Future<void> createDirectory(
-    FileSystemContext context,
+    Context context,
     Path path, {
     CreateDirectoryOptions options = const CreateDirectoryOptions(),
   }) {
@@ -114,7 +114,7 @@ class AliasFileSystem extends IFileSystem {
 
   @override
   Future<void> delete(
-    FileSystemContext context,
+    Context context,
     Path path, {
     DeleteOptions options = const DeleteOptions(),
   }) {
@@ -127,7 +127,7 @@ class AliasFileSystem extends IFileSystem {
 
   @override
   Future<bool> exists(
-    FileSystemContext context,
+    Context context,
     Path path, {
     ExistsOptions options = const ExistsOptions(),
   }) {
@@ -139,7 +139,7 @@ class AliasFileSystem extends IFileSystem {
 
   @override
   Stream<FileStatus> list(
-    FileSystemContext context,
+    Context context,
     Path path, {
     ListOptions options = const ListOptions(),
   }) async* {
@@ -170,7 +170,7 @@ class AliasFileSystem extends IFileSystem {
 
   @override
   Future<void> move(
-    FileSystemContext context,
+    Context context,
     Path source,
     Path destination, {
     MoveOptions options = const MoveOptions(),
@@ -193,7 +193,7 @@ class AliasFileSystem extends IFileSystem {
 
   @override
   Stream<List<int>> openRead(
-    FileSystemContext context,
+    Context context,
     Path path, {
     ReadOptions options = const ReadOptions(),
   }) {
@@ -209,7 +209,7 @@ class AliasFileSystem extends IFileSystem {
 
   @override
   Future<StreamSink<List<int>>> openWrite(
-    FileSystemContext context,
+    Context context,
     Path path, {
     WriteOptions options = const WriteOptions(),
   }) {
@@ -222,7 +222,7 @@ class AliasFileSystem extends IFileSystem {
 
   @override
   Future<Uint8List> readAsBytes(
-    FileSystemContext context,
+    Context context,
     Path path, {
     ReadOptions options = const ReadOptions(),
   }) {
@@ -237,7 +237,7 @@ class AliasFileSystem extends IFileSystem {
 
   @override
   Future<FileStatus?> stat(
-    FileSystemContext context,
+    Context context,
     Path path, {
     StatOptions options = const StatOptions(),
   }) async {
@@ -270,7 +270,7 @@ class AliasFileSystem extends IFileSystem {
 
   @override
   Future<void> writeBytes(
-    FileSystemContext context,
+    Context context,
     Path path,
     Uint8List data, {
     WriteOptions options = const WriteOptions(),

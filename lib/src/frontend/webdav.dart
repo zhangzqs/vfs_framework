@@ -1,10 +1,8 @@
+import 'dart:async';
 import 'dart:io' as io;
 import 'dart:math' as math;
-import 'dart:async';
-
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart';
-import 'package:uuid/uuid.dart';
 import 'package:vfs_framework/src/abstract/index.dart';
 import 'package:vfs_framework/src/helper/context_shelf_middleware.dart';
 import 'package:vfs_framework/vfs_framework.dart';
@@ -67,7 +65,7 @@ class WebDAVServer {
       <
         String,
         Future<Response> Function(
-          FileSystemContext context,
+          Context context,
           Path path,
           Request request,
         )
@@ -125,7 +123,7 @@ class WebDAVServer {
 
   /// 处理GET请求 - 读取文件或列出目录
   Future<Response> _handleGet(
-    FileSystemContext context,
+    Context context,
     Path path,
     Request request,
   ) async {
@@ -145,7 +143,7 @@ class WebDAVServer {
 
   /// 处理PUT请求 - 上传文件
   Future<Response> _handlePut(
-    FileSystemContext context,
+    Context context,
     Path path,
     Request request,
   ) async {
@@ -172,7 +170,7 @@ class WebDAVServer {
 
   /// 处理DELETE请求 - 删除文件或目录
   Future<Response> _handleDelete(
-    FileSystemContext context,
+    Context context,
     Path path,
     Request request,
   ) async {
@@ -197,7 +195,7 @@ class WebDAVServer {
 
   /// 处理MKCOL请求 - 创建目录
   Future<Response> _handleMkcol(
-    FileSystemContext context,
+    Context context,
     Path path,
     Request request,
   ) async {
@@ -220,7 +218,7 @@ class WebDAVServer {
 
   /// 处理PROPFIND请求 - 获取属性
   Future<Response> _handlePropfind(
-    FileSystemContext context,
+    Context context,
     Path path,
     Request request,
   ) async {
@@ -271,7 +269,7 @@ class WebDAVServer {
 
   /// 处理PROPPATCH请求 - 设置属性（暂不实现）
   Future<Response> _handleProppatch(
-    FileSystemContext context,
+    Context context,
     Path path,
     Request request,
   ) async {
@@ -281,7 +279,7 @@ class WebDAVServer {
 
   /// 处理COPY请求 - 复制文件或目录
   Future<Response> _handleCopy(
-    FileSystemContext context,
+    Context context,
     Path path,
     Request request,
   ) async {
@@ -313,7 +311,7 @@ class WebDAVServer {
 
   /// 处理MOVE请求 - 移动文件或目录
   Future<Response> _handleMove(
-    FileSystemContext context,
+    Context context,
     Path path,
     Request request,
   ) async {
@@ -345,7 +343,7 @@ class WebDAVServer {
 
   /// 处理HEAD请求 - 仅返回头信息
   Future<Response> _handleHead(
-    FileSystemContext context,
+    Context context,
     Path path,
     Request request,
   ) async {
@@ -370,7 +368,7 @@ class WebDAVServer {
 
   /// 处理OPTIONS请求 - 返回支持的方法
   Future<Response> _handleOptions(
-    FileSystemContext context,
+    Context context,
     Path path,
     Request request,
   ) async {
@@ -382,7 +380,7 @@ class WebDAVServer {
 
   /// 处理目录列表（HTML格式）
   Future<Response> _handleDirectoryListing(
-    FileSystemContext context,
+    Context context,
     Path path,
   ) async {
     final items = <String>[];
@@ -438,11 +436,12 @@ class WebDAVServer {
 
   /// 处理文件下载
   Future<Response> _handleFileDownload(
-    FileSystemContext context,
+    Context context,
     Path path,
     FileStatus status,
     Request request,
   ) async {
+    final logger = context.logger;
     final mimeType = status.mimeType ?? 'application/octet-stream';
     final fileSize = status.size;
 
@@ -458,20 +457,41 @@ class WebDAVServer {
         mimeType,
       );
     }
-
     // 标准的完整文件下载
     final headers = <String, String>{
       'Content-Type': mimeType,
       'Accept-Ranges': 'bytes', // 告诉客户端我们支持Range请求
       if (fileSize != null) 'Content-Length': fileSize.toString(),
     };
-
-    return Response.ok(fs.openRead(context, path), headers: headers);
+    logger.debug('下载文件: $path, MIME类型: $mimeType, 大小: $fileSize');
+    final streamController = StreamController<List<int>>();
+    unawaited(
+      Future.microtask(() async {
+        final stream = fs.openRead(context, path);
+        await for (final chunk in stream) {
+          // if (streamController.isClosed) {
+          //   logger.warning('下载流已关闭，停止发送数据: $path');
+          //   break;
+          // }
+          streamController.add(chunk);
+        }
+        await streamController.close();
+        logger.debug('文件下载完成: $path');
+      }).catchError((e) {
+        logger.error('下载文件时出错: $e');
+        if (!streamController.isClosed) streamController.close();
+      }),
+    );
+    return Response.ok(
+      streamController,
+      headers: headers,
+      context: {...request.context, 'shelf.io.buffer_output': false}, // 关闭缓冲
+    );
   }
 
   /// 处理HTTP Range请求，返回206 Partial Content
   Future<Response> _handleRangeRequest(
-    FileSystemContext context,
+    Context context,
     Path path,
     int fileSize,
     String rangeHeader,
@@ -566,7 +586,7 @@ class WebDAVServer {
 
   /// 构建PROPFIND响应
   String _buildPropfindResponse(
-    FileSystemContext context,
+    Context context,
     Path path,
     FileStatus status,
   ) {

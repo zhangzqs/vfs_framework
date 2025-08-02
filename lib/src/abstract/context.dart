@@ -5,8 +5,8 @@ import 'package:uuid/uuid.dart';
 import 'errors.dart';
 import 'logger.dart';
 
-class FileSystemContext {
-  FileSystemContext({Logger? logger, String? operationID})
+class Context {
+  Context({Logger? logger, String? operationID})
     : logger = logger ?? defaultLogger,
       _operationID = operationID ?? const Uuid().v8();
 

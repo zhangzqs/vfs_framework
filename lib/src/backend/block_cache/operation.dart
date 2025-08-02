@@ -28,7 +28,7 @@ class CacheOperation {
   final Map<String, int> _lastAccessedBlock = {}; // 记录每个文件最后访问的块索引
 
   /// 基于SHA256生成文件路径的hash值，16个字符
-  String _generatePathHash(FileSystemContext context, Path path) {
+  String _generatePathHash(Context context, Path path) {
     final logger = context.logger;
     // hash为长度为16的字符串
     final pathString = path.toString();
@@ -42,7 +42,7 @@ class CacheOperation {
   }
 
   /// 在cacheDir中，针对srcPath构建分层缓存目录路径，双层目录结构，有利于文件系统查询性能
-  Path _buildCacheHashDir(FileSystemContext context, Path path) {
+  Path _buildCacheHashDir(Context context, Path path) {
     final logger = context.logger;
     final hash = _generatePathHash(context, path);
     // 使用前2位作为第一层目录 (每个level1下4096种可能)
@@ -63,7 +63,7 @@ class CacheOperation {
 
   /// 实现块缓存的读取
   Stream<List<int>> openReadWithBlockCache(
-    FileSystemContext context,
+    Context context,
     Path path,
     ReadOptions options,
   ) async* {
@@ -146,7 +146,7 @@ class CacheOperation {
 
   /// 获取指定块的数据（带缓存和预读）
   Future<Uint8List> _getBlockData(
-    FileSystemContext context,
+    Context context,
     Path cacheHashDir,
     int blockIdx,
     Path originalPath,
@@ -238,7 +238,7 @@ class CacheOperation {
 
   /// 从原始文件系统读取指定块
   Future<Uint8List> _readBlockFromOrigin(
-    FileSystemContext context,
+    Context context,
     Path path,
     int blockIdx,
   ) async {
@@ -264,7 +264,7 @@ class CacheOperation {
 
   /// 从缓存文件系统读取完整块
   Future<Uint8List?> _readFullBlock(
-    FileSystemContext context,
+    Context context,
     IFileSystem filesystem,
     Path path,
   ) async {
@@ -280,7 +280,7 @@ class CacheOperation {
 
   /// 异步写入缓存（不阻塞主流程）
   void _writeToCacheAsync(
-    FileSystemContext context,
+    Context context,
     Path cacheHashDir,
     Path cacheBlocksDir,
     Path cacheBlockPath,
@@ -345,7 +345,7 @@ class CacheOperation {
 
   /// 验证缓存完整性，防止hash冲突
   Future<bool> _validateCacheIntegrity(
-    FileSystemContext context,
+    Context context,
     Path metaPath,
     Path originalPath,
   ) async {
@@ -397,7 +397,7 @@ class CacheOperation {
 
   /// 读取缓存元数据
   Future<CacheMetadata?> _readCacheMetadata(
-    FileSystemContext context,
+    Context context,
     Path metaPath,
   ) async {
     final logger = context.logger;
@@ -425,7 +425,7 @@ class CacheOperation {
 
   /// 更新缓存元数据
   Future<void> _updateCacheMetadata(
-    FileSystemContext context,
+    Context context,
     Path metaPath,
     Path originalPath,
     int blockIdx,
@@ -488,7 +488,7 @@ class CacheOperation {
   }
 
   /// 使指定文件的缓存失效
-  Future<void> invalidateCache(FileSystemContext context, Path path) async {
+  Future<void> invalidateCache(Context context, Path path) async {
     final logger = context.logger;
 
     try {
@@ -525,7 +525,7 @@ class CacheOperation {
 
   /// 清理空的父级目录（避免留下大量空目录）
   Future<void> _cleanupEmptyParentDirs(
-    FileSystemContext context,
+    Context context,
     Path cacheHashDir,
   ) async {
     final logger = context.logger;
@@ -572,7 +572,7 @@ class CacheOperation {
 
   /// 触发预读操作
   void _triggerReadAhead(
-    FileSystemContext context,
+    Context context,
     Path originalPath,
     int currentBlockIdx,
   ) {
@@ -608,7 +608,7 @@ class CacheOperation {
 
   /// 执行预读操作
   void _performReadAhead(
-    FileSystemContext context,
+    Context context,
     Path originalPath,
     int currentBlockIdx,
   ) {
@@ -695,7 +695,7 @@ class CacheOperation {
 
   /// 预读单个块
   Future<void> _readAheadBlock(
-    FileSystemContext context,
+    Context context,
     Path originalPath,
     int blockIdx,
     Path cacheHashDir,
@@ -775,7 +775,7 @@ class CacheOperation {
   }
 
   /// 清理预读状态（当文件缓存失效时调用）
-  void _cleanupReadAheadState(FileSystemContext context, Path originalPath) {
+  void _cleanupReadAheadState(Context context, Path originalPath) {
     final logger = context.logger;
     final pathString = originalPath.toString();
     _activeReadAheadTasks.remove(pathString);

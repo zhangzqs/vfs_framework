@@ -6,9 +6,9 @@ import '../abstract/index.dart';
 
 /// 一个基于非递归列举形成递归列举的函数
 Stream<FileStatus> recursiveList(
-  FileSystemContext context, {
+  Context context, {
   required Stream<FileStatus> Function(
-    FileSystemContext context,
+    Context context,
     Path path, {
     ListOptions options,
   })
@@ -43,9 +43,9 @@ Stream<FileStatus> recursiveList(
 }
 
 Future<void> recursiveCreateDirectory(
-  FileSystemContext context, {
+  Context context, {
   required Future<void> Function(
-    FileSystemContext context,
+    Context context,
     Path path, {
     CreateDirectoryOptions options,
   })
@@ -77,15 +77,15 @@ Future<void> recursiveCreateDirectory(
 }
 
 Future<void> recursiveDelete(
-  FileSystemContext context, {
+  Context context, {
   required Future<void> Function(
-    FileSystemContext context,
+    Context context,
     Path path, {
     DeleteOptions options,
   })
   nonRecursiveDelete, // 普通的非递归删除函数
   required Stream<FileStatus> Function(
-    FileSystemContext context,
+    Context context,
     Path path, {
     ListOptions options,
   })
@@ -122,25 +122,25 @@ Future<void> recursiveDelete(
 }
 
 Future<void> recursiveCopy(
-  FileSystemContext context, {
+  Context context, {
   required Path source,
   required Path destination,
   required CopyOptions options,
   required Future<void> Function(
-    FileSystemContext context,
+    Context context,
     Path source,
     Path destination, {
     CopyOptions options,
   })
   nonRecursiveCopyFile,
   required Stream<FileStatus> Function(
-    FileSystemContext context,
+    Context context,
     Path path, {
     ListOptions options,
   })
   nonRecursiveList,
   required Future<void> Function(
-    FileSystemContext context,
+    Context context,
     Path path, {
     CreateDirectoryOptions options,
   })
@@ -201,17 +201,17 @@ Future<void> recursiveCopy(
 }
 
 Future<void> copyFileByReadAndWrite(
-  FileSystemContext context,
+  Context context,
   Path source,
   Path destination, {
   required Future<StreamSink<List<int>>> Function(
-    FileSystemContext context,
+    Context context,
     Path path, {
     WriteOptions options,
   })
   openWrite,
   required Stream<List<int>> Function(
-    FileSystemContext context,
+    Context context,
     Path path, {
     ReadOptions options,
   })
@@ -232,9 +232,9 @@ Future<void> copyFileByReadAndWrite(
 mixin FileSystemHelper on IFileSystem {
   /// 基于非递归list实现支持递归的list
   Stream<FileStatus> listImplByNonRecursive(
-    FileSystemContext context, {
+    Context context, {
     required Stream<FileStatus> Function(
-      FileSystemContext context,
+      Context context,
       Path path, {
       ListOptions options,
     })
@@ -260,9 +260,9 @@ mixin FileSystemHelper on IFileSystem {
 
   /// 基于非递归createDirectory实现支持递归的createDirectory
   Future<void> createDirectoryImplByNonRecursive(
-    FileSystemContext context, {
+    Context context, {
     required Future<void> Function(
-      FileSystemContext context,
+      Context context,
       Path path, {
       CreateDirectoryOptions options,
     })
@@ -293,15 +293,15 @@ mixin FileSystemHelper on IFileSystem {
   }
 
   Future<void> deleteImplByNonRecursive(
-    FileSystemContext context, {
+    Context context, {
     required Future<void> Function(
-      FileSystemContext context,
+      Context context,
       Path path, {
       DeleteOptions options,
     })
     nonRecursiveDelete,
     required Stream<FileStatus> Function(
-      FileSystemContext context,
+      Context context,
       Path path, {
       ListOptions options,
     })
@@ -342,25 +342,25 @@ mixin FileSystemHelper on IFileSystem {
   }
 
   Future<void> copyImplByNonRecursive(
-    FileSystemContext context, {
+    Context context, {
     required Path source,
     required Path destination,
     required CopyOptions options,
     required Future<void> Function(
-      FileSystemContext context,
+      Context context,
       Path source,
       Path destination, {
       CopyOptions options,
     })
     nonRecursiveCopyFile,
     required Stream<FileStatus> Function(
-      FileSystemContext context,
+      Context context,
       Path path, {
       ListOptions options,
     })
     nonRecursiveList,
     required Future<void> Function(
-      FileSystemContext context,
+      Context context,
       Path path, {
       CreateDirectoryOptions options,
     })
@@ -457,7 +457,7 @@ mixin FileSystemHelper on IFileSystem {
   }
 
   Future<void> preOpenWriteCheck(
-    FileSystemContext context,
+    Context context,
     Path path, {
     WriteOptions options = const WriteOptions(),
   }) async {
@@ -499,7 +499,7 @@ mixin FileSystemHelper on IFileSystem {
   }
 
   Future<void> preOpenReadCheck(
-    FileSystemContext context,
+    Context context,
     Path path, {
     ReadOptions options = const ReadOptions(),
   }) async {
@@ -517,7 +517,7 @@ mixin FileSystemHelper on IFileSystem {
   /// 检查是否存在
   @override
   Future<bool> exists(
-    FileSystemContext context,
+    Context context,
     Path path, {
     ExistsOptions options = const ExistsOptions(),
   }) async {
@@ -528,7 +528,7 @@ mixin FileSystemHelper on IFileSystem {
   /// 读取全部文件内容
   @override
   Future<Uint8List> readAsBytes(
-    FileSystemContext context,
+    Context context,
     Path path, {
     ReadOptions options = const ReadOptions(),
   }) async {
@@ -542,7 +542,7 @@ mixin FileSystemHelper on IFileSystem {
   /// 覆盖写入全部文件内容
   @override
   Future<void> writeBytes(
-    FileSystemContext context,
+    Context context,
     Path path,
     Uint8List data, {
     WriteOptions options = const WriteOptions(),
@@ -556,7 +556,7 @@ mixin FileSystemHelper on IFileSystem {
   /// 移动文件/目录
   @override
   Future<void> move(
-    FileSystemContext context,
+    Context context,
     Path source,
     Path destination, {
     MoveOptions options = const MoveOptions(),
