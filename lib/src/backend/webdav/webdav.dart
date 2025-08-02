@@ -1,22 +1,21 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
-import 'package:logging/logging.dart';
+import 'package:vfs_framework/src/abstract/context.dart';
 import 'package:vfs_framework/src/backend/webdav/propfind_xml.dart';
 import 'package:vfs_framework/src/backend/webdav/webdav_dio.dart';
 import 'package:vfs_framework/src/helper/filesystem_helper.dart';
 import 'package:vfs_framework/vfs_framework.dart';
 
 class WebDAVFileSystem extends IFileSystem with FileSystemHelper {
-  WebDAVFileSystem(Dio dio, {String loggerName = 'WebDAVBaseClient'})
-    : logger = Logger(loggerName),
-      webdavDio = WebDAVDio(dio);
+  WebDAVFileSystem(Dio dio) : webdavDio = WebDAVDio(dio);
 
-  @override
-  final Logger logger;
   final WebDAVDio webdavDio;
-  Future<void> ping() async {
-    final resp = await webdavDio.options('/');
+  Future<void> ping(FileSystemContext context) async {
+    final resp = await webdavDio.options(
+      '/',
+      cancelToken: _getCancelToken(context),
+    );
     if (resp.statusCode == 200) {
       return;
     }
@@ -26,16 +25,29 @@ class WebDAVFileSystem extends IFileSystem with FileSystemHelper {
     );
   }
 
+  CancelToken _getCancelToken(FileSystemContext context) {
+    final token = CancelToken();
+    Future.microtask(() async {
+      final e = await context.whenCancel;
+      if (!token.isCancelled) {
+        token.cancel('Operation cancelled by context: ${e.message}');
+      }
+    });
+    return token;
+  }
+
   @override
   Stream<List<int>> openRead(
+    FileSystemContext context,
     Path path, {
     ReadOptions options = const ReadOptions(),
   }) async* {
-    await preOpenReadCheck(path, options: options);
+    await preOpenReadCheck(context, path, options: options);
     final resp = await webdavDio.getStream(
       path.toString(),
       start: options.start,
       end: options.end,
+      cancelToken: _getCancelToken(context),
     );
 
     if (resp.statusCode == 200 || resp.statusCode == 206) {
@@ -56,6 +68,7 @@ class WebDAVFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Future<StreamSink<List<int>>> openWrite(
+    FileSystemContext context,
     Path path, {
     WriteOptions options = const WriteOptions(),
   }) async {
@@ -65,14 +78,14 @@ class WebDAVFileSystem extends IFileSystem with FileSystemHelper {
         'Append mode not implemented for WebDAV',
       );
     }
-    await preOpenWriteCheck(path, options: options);
+    await preOpenWriteCheck(context, path, options: options);
 
     // 创建一个StreamController用于真正的流式传输
     final streamController = StreamController<List<int>>();
     final completer = Completer<void>();
 
     // 立即开始PUT请求，使用流式数据
-    _startPutRequest(path, streamController.stream, completer);
+    _startPutRequest(context, path, streamController.stream, completer);
 
     // 返回自定义的StreamSink
     return _WebDAVWriteSink(
@@ -84,17 +97,23 @@ class WebDAVFileSystem extends IFileSystem with FileSystemHelper {
 
   /// 开始流式PUT请求
   void _startPutRequest(
+    FileSystemContext context,
     Path path,
     Stream<List<int>> dataStream,
     Completer<void> completer,
   ) async {
+    final logger = context.logger;
     try {
-      logger.fine('Starting streaming PUT request for: $path');
+      logger.debug('Starting streaming PUT request for: $path');
 
       // 使用流式PUT请求
-      final resp = await webdavDio.putStream(path.toString(), dataStream);
+      final resp = await webdavDio.putStream(
+        path.toString(),
+        dataStream,
+        cancelToken: _getCancelToken(context),
+      );
 
-      logger.fine(
+      logger.debug(
         'PUT request completed for: $path, status: ${resp.statusCode}',
       );
 
@@ -102,7 +121,7 @@ class WebDAVFileSystem extends IFileSystem with FileSystemHelper {
       if (resp.statusCode == 201 ||
           resp.statusCode == 204 ||
           resp.statusCode == 200) {
-        logger.fine('File written successfully: $path');
+        logger.debug('File written successfully: $path');
         completer.complete();
       } else if (resp.statusCode == 403) {
         logger.warning('Permission denied writing file: $path');
@@ -118,12 +137,17 @@ class WebDAVFileSystem extends IFileSystem with FileSystemHelper {
         );
       }
     } catch (e, stackTrace) {
-      logger.severe('Error during PUT request for: $path', e, stackTrace);
+      logger.error(
+        'Error during PUT request for: $path',
+        error: e,
+        stackTrace: stackTrace,
+      );
       completer.completeError(e);
     }
   }
 
   Future<void> nonRecursiveCopyFile(
+    FileSystemContext context,
     Path source,
     Path destination, {
     CopyOptions options = const CopyOptions(),
@@ -132,6 +156,7 @@ class WebDAVFileSystem extends IFileSystem with FileSystemHelper {
       source.toString(),
       destination.toString(),
       overwrite: options.overwrite,
+      cancelToken: _getCancelToken(context),
     );
     if (resp.statusCode == 201 || resp.statusCode == 204) {
       return; // 成功拷贝
@@ -150,11 +175,13 @@ class WebDAVFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Future<void> copy(
+    FileSystemContext context,
     Path source,
     Path destination, {
     CopyOptions options = const CopyOptions(),
   }) async {
     await copyImplByNonRecursive(
+      context,
       source: source,
       destination: destination,
       options: options,
@@ -165,16 +192,18 @@ class WebDAVFileSystem extends IFileSystem with FileSystemHelper {
   }
 
   Future<void> nonRecursiveCreateDirectory(
+    FileSystemContext context,
     Path path, {
     CreateDirectoryOptions options = const CreateDirectoryOptions(),
   }) async {
+    final logger = context.logger;
     if (path.isRoot) {
       return; // 根目录不需要创建
     }
     // 检查父目录是否存在
     final parentPath = path.parent;
     if (parentPath != null) {
-      final parentStat = await stat(parentPath);
+      final parentStat = await stat(context, parentPath);
       if (parentStat == null) {
         throw FileSystemException.notFound(parentPath);
       } else {
@@ -182,11 +211,14 @@ class WebDAVFileSystem extends IFileSystem with FileSystemHelper {
           throw FileSystemException.notADirectory(parentPath);
         } else {
           // 父目录存在且是目录
-          logger.fine('Parent directory exists: $parentPath');
+          logger.debug('Parent directory exists: $parentPath');
         }
       }
     }
-    final resp = await webdavDio.mkcol(path.toString());
+    final resp = await webdavDio.mkcol(
+      path.toString(),
+      cancelToken: _getCancelToken(context),
+    );
     if (resp.statusCode == 201 || resp.statusCode == 405) {
       return; // 成功创建或已存在
     }
@@ -204,10 +236,12 @@ class WebDAVFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Future<void> createDirectory(
+    FileSystemContext context,
     Path path, {
     CreateDirectoryOptions options = const CreateDirectoryOptions(),
   }) {
     return createDirectoryImplByNonRecursive(
+      context,
       nonRecursiveCreateDirectory: nonRecursiveCreateDirectory,
       path: path,
       options: options,
@@ -215,14 +249,18 @@ class WebDAVFileSystem extends IFileSystem with FileSystemHelper {
   }
 
   Future<void> nonRecursiveDelete(
+    FileSystemContext context,
     Path path, {
     DeleteOptions options = const DeleteOptions(),
   }) async {
-    final statRes = await stat(path);
+    final statRes = await stat(context, path);
     if (statRes == null) {
       throw FileSystemException.notFound(path);
     }
-    final resp = await webdavDio.delete(path.toString());
+    final resp = await webdavDio.delete(
+      path.toString(),
+      cancelToken: _getCancelToken(context),
+    );
     if (resp.statusCode == 204 || resp.statusCode == 200) {
       return; // 成功删除
     }
@@ -240,10 +278,12 @@ class WebDAVFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Future<void> delete(
+    FileSystemContext context,
     Path path, {
     DeleteOptions options = const DeleteOptions(),
   }) {
     return deleteImplByNonRecursive(
+      context,
       nonRecursiveDelete: nonRecursiveDelete,
       nonRecursiveList: nonRecursiveList,
       path: path,
@@ -252,10 +292,15 @@ class WebDAVFileSystem extends IFileSystem with FileSystemHelper {
   }
 
   Stream<FileStatus> nonRecursiveList(
+    FileSystemContext context,
     Path path, {
     ListOptions options = const ListOptions(),
   }) async* {
-    final resp = await webdavDio.propfind(path.toString(), depth: 1);
+    final resp = await webdavDio.propfind(
+      path.toString(),
+      depth: 1,
+      cancelToken: _getCancelToken(context),
+    );
     if (resp.statusCode == 404) {
       throw FileSystemException.notFound(path);
     }
@@ -281,11 +326,13 @@ class WebDAVFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Stream<FileStatus> list(
+    FileSystemContext context,
     Path path, {
     ListOptions options = const ListOptions(),
   }) {
     // 遍历目录
     return listImplByNonRecursive(
+      context,
       nonRecursiveList: nonRecursiveList,
       path: path,
       options: options,
@@ -303,10 +350,15 @@ class WebDAVFileSystem extends IFileSystem with FileSystemHelper {
 
   @override
   Future<FileStatus?> stat(
+    FileSystemContext context,
     Path path, {
     StatOptions options = const StatOptions(),
   }) async {
-    final ret = await webdavDio.propfind(path.toString(), depth: 0);
+    final ret = await webdavDio.propfind(
+      path.toString(),
+      depth: 0,
+      cancelToken: _getCancelToken(context),
+    );
     if (ret.statusCode == 404) {
       return null;
     }
