@@ -7,6 +7,25 @@ import 'package:vfs_framework/src/abstract/index.dart';
 import 'package:vfs_framework/src/helper/context_shelf_middleware.dart';
 import 'package:vfs_framework/vfs_framework.dart';
 
+/// CORS中间件
+Middleware _corsMiddleware(Iterable<String> methods) => (Handler innerHandler) {
+  final corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': methods.join(', '),
+    'Access-Control-Allow-Headers':
+        'Content-Type, Authorization, Depth, Destination, Overwrite',
+    'Access-Control-Max-Age': '86400',
+  };
+  return (Request request) async {
+    if (request.method == 'OPTIONS') {
+      return Response.ok('', headers: corsHeaders);
+    }
+
+    final response = await innerHandler(request);
+    return response.change(headers: {...response.headers, ...corsHeaders});
+  };
+};
+
 /// WebDAV服务器实现
 class WebDAVServer {
   WebDAVServer(
@@ -25,7 +44,7 @@ class WebDAVServer {
   /// 启动WebDAV服务器
   Future<io.HttpServer> start() async {
     final handler = const Pipeline()
-        .addMiddleware(_corsMiddleware)
+        .addMiddleware(_corsMiddleware(_routerHandler.keys))
         .addMiddleware(contextMiddleware(logger))
         .addHandler(handleRequest);
 
@@ -41,25 +60,6 @@ class WebDAVServer {
     await _server?.close();
     _server = null;
   }
-
-  /// CORS中间件
-  Middleware get _corsMiddleware => (Handler innerHandler) {
-    final corsHeaders = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': _routerHandler.keys.join(', '),
-      'Access-Control-Allow-Headers':
-          'Content-Type, Authorization, Depth, Destination, Overwrite',
-      'Access-Control-Max-Age': '86400',
-    };
-    return (Request request) async {
-      if (request.method == 'OPTIONS') {
-        return Response.ok('', headers: corsHeaders);
-      }
-
-      final response = await innerHandler(request);
-      return response.change(headers: {...response.headers, ...corsHeaders});
-    };
-  };
 
   late final _routerHandler =
       <
