@@ -13,6 +13,7 @@ enum FileSystemErrorCode {
   recursiveNotSpecified, // 递归操作未指定
   readOnly, // 文件系统为只读
   notImplemented, // 功能未实现
+  contextCanceled, // 上下文被取消
 }
 
 /// 统一文件系统异常

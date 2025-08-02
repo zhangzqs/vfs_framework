@@ -17,6 +17,7 @@ enum WriteMode {
 
 final class WriteOptions {
   const WriteOptions({this.mode = WriteMode.write});
+
   final WriteMode mode;
 }
 
