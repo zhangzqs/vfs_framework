@@ -1,9 +1,5 @@
 import 'dart:async';
 import 'dart:typed_data';
-
-import 'package:logging/logging.dart';
-import 'package:vfs_framework/src/abstract/context.dart';
-
 import '../abstract/index.dart';
 
 class UnionFileSystemItem {
@@ -25,18 +21,21 @@ class UnionFileSystem extends IFileSystem {
     : _items = List.from(items)
         ..sort((a, b) => b.priority.compareTo(a.priority));
   final List<UnionFileSystemItem> _items;
-  final Logger logger = Logger('UnionFileSystem');
 
   /// 获取路径对应的文件系统项，按优先级排序
-  List<UnionFileSystemItem> _getItemsForPath(Path path) {
+  List<UnionFileSystemItem> _getItemsForPath(
+    FileSystemContext context,
+    Path path,
+  ) {
+    final logger = context.logger;
     final items = _items.where((item) {
       // 检查路径是否在该文件系统的挂载点下
       return _isPathUnder(path, item.mountPath);
     }).toList();
 
-    logger.finest('Found ${items.length} filesystem items for path: $path');
+    logger.trace('Found ${items.length} filesystem items for path: $path');
     for (final item in items) {
-      logger.finest(
+      logger.trace(
         '  - Mount: ${item.mountPath}, '
         'Priority: ${item.priority}, '
         'ReadOnly: ${item.readOnly}',
@@ -58,13 +57,15 @@ class UnionFileSystem extends IFileSystem {
   }
 
   /// 将union路径转换为文件系统内部路径
-  Path _convertPath(Path unionPath, Path mountPath) {
+  Path _convertPath(FileSystemContext context, Path unionPath, Path mountPath) {
+    final logger = context.logger;
+
     if (mountPath.isRoot) return unionPath;
 
     // 移除挂载点前缀
     final segments = unionPath.segments.sublist(mountPath.segments.length);
     final ret = Path(segments);
-    logger.finest('Convert path: $unionPath -> $ret (mount: $mountPath)');
+    logger.trace('Convert path: $unionPath -> $ret (mount: $mountPath)');
     return ret;
   }
 
@@ -73,8 +74,9 @@ class UnionFileSystem extends IFileSystem {
     FileSystemContext context,
     Path path,
   ) async {
-    logger.fine('Searching for readable item for path: $path');
-    final items = _getItemsForPath(path);
+    final logger = context.logger;
+    logger.debug('Searching for readable item for path: $path');
+    final items = _getItemsForPath(context, path);
 
     // 按挂载点的具体程度排序（路径段数更多的更具体），然后按优先级排序
     items.sort((a, b) {
@@ -86,27 +88,32 @@ class UnionFileSystem extends IFileSystem {
     });
 
     for (final item in items) {
-      final internalPath = _convertPath(path, item.mountPath);
-      logger.finest(
+      final internalPath = _convertPath(context, path, item.mountPath);
+      logger.trace(
         'Checking existence in filesystem: ${item.mountPath} -> $internalPath',
       );
 
       if (await item.fileSystem.exists(context, internalPath)) {
-        logger.fine(
+        logger.debug(
           'Found readable item for $path in filesystem: ${item.mountPath}',
         );
         return item;
       }
     }
 
-    logger.fine('No readable item found for path: $path');
+    logger.debug('No readable item found for path: $path');
     return null;
   }
 
   /// 获取第一个可写的文件系统项，优先选择最具体的挂载点
-  UnionFileSystemItem? _getFirstWritableItem(Path path) {
-    logger.fine('Searching for writable item for path: $path');
+  UnionFileSystemItem? _getFirstWritableItem(
+    FileSystemContext context,
+    Path path,
+  ) {
+    final logger = context.logger;
+    logger.debug('Searching for writable item for path: $path');
     final items = _getItemsForPath(
+      context,
       path,
     ).where((item) => !item.readOnly).toList();
 
@@ -125,7 +132,7 @@ class UnionFileSystem extends IFileSystem {
     });
 
     final selected = items.first;
-    logger.fine(
+    logger.debug(
       'Selected writable filesystem for $path: ${selected.mountPath} '
       '(priority: ${selected.priority})',
     );
@@ -139,13 +146,14 @@ class UnionFileSystem extends IFileSystem {
     Path destination, {
     CopyOptions options = const CopyOptions(),
   }) async {
+    final logger = context.logger;
     logger.info(
       'Copying from $source to $destination (overwrite: ${options.overwrite}, '
       'recursive: ${options.recursive})',
     );
 
     final sourceItem = await _getFirstReadableItemAsync(context, source);
-    final destItem = _getFirstWritableItem(destination);
+    final destItem = _getFirstWritableItem(context, destination);
 
     if (sourceItem == null) {
       logger.warning('Copy failed: source not found: $source');
@@ -158,12 +166,20 @@ class UnionFileSystem extends IFileSystem {
       throw FileSystemException.readOnly(destination);
     }
 
-    final sourceInternalPath = _convertPath(source, sourceItem.mountPath);
-    final destInternalPath = _convertPath(destination, destItem.mountPath);
+    final sourceInternalPath = _convertPath(
+      context,
+      source,
+      sourceItem.mountPath,
+    );
+    final destInternalPath = _convertPath(
+      context,
+      destination,
+      destItem.mountPath,
+    );
 
     // 如果源和目标在同一个文件系统中，直接拷贝
     if (sourceItem == destItem) {
-      logger.fine(
+      logger.debug(
         'Direct copy within same filesystem: ${sourceItem.mountPath}',
       );
       return sourceItem.fileSystem.copy(
@@ -174,7 +190,7 @@ class UnionFileSystem extends IFileSystem {
       );
     }
 
-    logger.fine(
+    logger.debug(
       'Cross-filesystem copy: ${sourceItem.mountPath} -> ${destItem.mountPath}',
     );
 
@@ -189,12 +205,12 @@ class UnionFileSystem extends IFileSystem {
     }
 
     if (sourceStatus.isDirectory) {
-      logger.fine('Copying directory: $source');
+      logger.debug('Copying directory: $source');
       // 拷贝目录
       await destItem.fileSystem.createDirectory(context, destInternalPath);
 
       if (options.recursive) {
-        logger.fine('Recursively copying directory contents');
+        logger.debug('Recursively copying directory contents');
         await for (final item in sourceItem.fileSystem.list(
           context,
           sourceInternalPath,
@@ -214,7 +230,7 @@ class UnionFileSystem extends IFileSystem {
         }
       }
     } else {
-      logger.fine('Copying file: $source (size: ${sourceStatus.size} bytes)');
+      logger.debug('Copying file: $source (size: ${sourceStatus.size} bytes)');
       // 拷贝文件
       final data = await sourceItem.fileSystem.readAsBytes(
         context,
@@ -239,11 +255,12 @@ class UnionFileSystem extends IFileSystem {
     Path path, {
     CreateDirectoryOptions options = const CreateDirectoryOptions(),
   }) async {
+    final logger = context.logger;
     logger.info(
       'Creating directory: $path (createParents: ${options.createParents})',
     );
 
-    final item = _getFirstWritableItem(path);
+    final item = _getFirstWritableItem(context, path);
     if (item == null) {
       logger.warning(
         'Create directory failed: no writable filesystem for path: $path',
@@ -251,8 +268,8 @@ class UnionFileSystem extends IFileSystem {
       throw FileSystemException.readOnly(path);
     }
 
-    final internalPath = _convertPath(path, item.mountPath);
-    logger.fine(
+    final internalPath = _convertPath(context, path, item.mountPath);
+    logger.debug(
       'Creating directory in filesystem ${item.mountPath}: $internalPath',
     );
 
@@ -270,9 +287,11 @@ class UnionFileSystem extends IFileSystem {
     Path path, {
     DeleteOptions options = const DeleteOptions(),
   }) async {
+    final logger = context.logger;
     logger.info('Deleting: $path (recursive: ${options.recursive})');
 
     final items = _getItemsForPath(
+      context,
       path,
     ).where((item) => !item.readOnly).toList();
 
@@ -286,21 +305,21 @@ class UnionFileSystem extends IFileSystem {
     int attemptCount = 0;
 
     for (final item in items) {
-      final internalPath = _convertPath(path, item.mountPath);
+      final internalPath = _convertPath(context, path, item.mountPath);
       attemptCount++;
 
       try {
         if (await item.fileSystem.exists(context, internalPath)) {
-          logger.fine(
+          logger.debug(
             'Deleting from filesystem ${item.mountPath}: $internalPath',
           );
           await item.fileSystem.delete(context, internalPath, options: options);
           deleted = true;
-          logger.fine(
+          logger.debug(
             'Successfully deleted from filesystem: ${item.mountPath}',
           );
         } else {
-          logger.finest(
+          logger.trace(
             'Path does not exist in filesystem '
             '${item.mountPath}: $internalPath',
           );
@@ -332,10 +351,11 @@ class UnionFileSystem extends IFileSystem {
     Path path, {
     ExistsOptions options = const ExistsOptions(),
   }) async {
+    final logger = context.logger;
     // 特殊处理根目录：如果没有文件系统挂载在根目录，
     // 但有挂载点是根目录的子目录，则根目录应该存在
     if (path.isRoot) {
-      final items = _getItemsForPath(path);
+      final items = _getItemsForPath(context, path);
 
       // 如果有文件系统挂载在根目录，检查实际存在性
       for (final item in items) {
@@ -352,7 +372,7 @@ class UnionFileSystem extends IFileSystem {
       );
 
       if (hasChildMounts) {
-        logger.fine('Root directory exists due to child mount points');
+        logger.debug('Root directory exists due to child mount points');
         return true;
       }
 
@@ -361,10 +381,10 @@ class UnionFileSystem extends IFileSystem {
     }
 
     // 对于非根目录路径，使用原有逻辑
-    final items = _getItemsForPath(path);
+    final items = _getItemsForPath(context, path);
 
     for (final item in items) {
-      final internalPath = _convertPath(path, item.mountPath);
+      final internalPath = _convertPath(context, path, item.mountPath);
       if (await item.fileSystem.exists(
         context,
         internalPath,
@@ -383,6 +403,7 @@ class UnionFileSystem extends IFileSystem {
     Path path, {
     ListOptions options = const ListOptions(),
   }) async* {
+    final logger = context.logger;
     final seenPaths = <String>{};
 
     // 首先添加所有挂载点（如果它们是当前路径的直接子目录）
@@ -418,10 +439,10 @@ class UnionFileSystem extends IFileSystem {
     }
 
     // 然后列出实际的文件系统内容
-    final items = _getItemsForPath(path);
+    final items = _getItemsForPath(context, path);
 
     for (final item in items) {
-      final internalPath = _convertPath(path, item.mountPath);
+      final internalPath = _convertPath(context, path, item.mountPath);
 
       try {
         await for (final status in item.fileSystem.list(
@@ -462,13 +483,14 @@ class UnionFileSystem extends IFileSystem {
     Path destination, {
     MoveOptions options = const MoveOptions(),
   }) async {
+    final logger = context.logger;
     logger.info(
       'Moving from $source to $destination (overwrite: ${options.overwrite}, '
       'recursive: ${options.recursive})',
     );
 
     final sourceItem = await _getFirstReadableItemAsync(context, source);
-    final destItem = _getFirstWritableItem(destination);
+    final destItem = _getFirstWritableItem(context, destination);
 
     if (sourceItem == null) {
       logger.warning('Move failed: source not found: $source');
@@ -485,12 +507,20 @@ class UnionFileSystem extends IFileSystem {
       throw FileSystemException.readOnly(source);
     }
 
-    final sourceInternalPath = _convertPath(source, sourceItem.mountPath);
-    final destInternalPath = _convertPath(destination, destItem.mountPath);
+    final sourceInternalPath = _convertPath(
+      context,
+      source,
+      sourceItem.mountPath,
+    );
+    final destInternalPath = _convertPath(
+      context,
+      destination,
+      destItem.mountPath,
+    );
 
     // 如果源和目标在同一个文件系统中，直接移动
     if (sourceItem == destItem) {
-      logger.fine(
+      logger.debug(
         'Direct move within same filesystem: ${sourceItem.mountPath}',
       );
       await sourceItem.fileSystem.move(
@@ -500,7 +530,7 @@ class UnionFileSystem extends IFileSystem {
         options: options,
       );
     } else {
-      logger.fine(
+      logger.debug(
         'Cross-filesystem move: '
         '${sourceItem.mountPath} -> ${destItem.mountPath}',
       );
@@ -532,7 +562,8 @@ class UnionFileSystem extends IFileSystem {
     Path path, {
     ReadOptions options = const ReadOptions(),
   }) async* {
-    logger.fine(
+    final logger = context.logger;
+    logger.debug(
       'Opening read stream for: '
       '$path (start: ${options.start}, end: ${options.end})',
     );
@@ -544,8 +575,8 @@ class UnionFileSystem extends IFileSystem {
       return;
     }
 
-    final internalPath = _convertPath(path, item.mountPath);
-    logger.fine('Reading from filesystem ${item.mountPath}: $internalPath');
+    final internalPath = _convertPath(context, path, item.mountPath);
+    logger.debug('Reading from filesystem ${item.mountPath}: $internalPath');
 
     yield* item.fileSystem.openRead(context, internalPath, options: options);
   }
@@ -556,16 +587,17 @@ class UnionFileSystem extends IFileSystem {
     Path path, {
     WriteOptions options = const WriteOptions(),
   }) async {
-    logger.fine('Opening write stream for: $path (mode: ${options.mode})');
+    final logger = context.logger;
+    logger.debug('Opening write stream for: $path (mode: ${options.mode})');
 
-    final item = _getFirstWritableItem(path);
+    final item = _getFirstWritableItem(context, path);
     if (item == null) {
       logger.warning('Open write failed: no writable filesystem for: $path');
       throw FileSystemException.readOnly(path);
     }
 
-    final internalPath = _convertPath(path, item.mountPath);
-    logger.fine('Writing to filesystem ${item.mountPath}: $internalPath');
+    final internalPath = _convertPath(context, path, item.mountPath);
+    logger.debug('Writing to filesystem ${item.mountPath}: $internalPath');
 
     return item.fileSystem.openWrite(context, internalPath, options: options);
   }
@@ -576,7 +608,8 @@ class UnionFileSystem extends IFileSystem {
     Path path, {
     ReadOptions options = const ReadOptions(),
   }) async {
-    logger.fine(
+    final logger = context.logger;
+    logger.debug(
       'Reading bytes for: $path (start: ${options.start}, end: ${options.end})',
     );
 
@@ -586,8 +619,8 @@ class UnionFileSystem extends IFileSystem {
       throw FileSystemException.notFound(path);
     }
 
-    final internalPath = _convertPath(path, item.mountPath);
-    logger.fine(
+    final internalPath = _convertPath(context, path, item.mountPath);
+    logger.debug(
       'Reading bytes from filesystem ${item.mountPath}: $internalPath',
     );
 
@@ -596,7 +629,7 @@ class UnionFileSystem extends IFileSystem {
       internalPath,
       options: options,
     );
-    logger.fine('Read ${data.length} bytes from: $path');
+    logger.debug('Read ${data.length} bytes from: $path');
     return data;
   }
 
@@ -606,10 +639,11 @@ class UnionFileSystem extends IFileSystem {
     Path path, {
     StatOptions options = const StatOptions(),
   }) async {
+    final logger = context.logger;
     // 特殊处理根目录：如果没有文件系统挂载在根目录，
     // 但有挂载点是根目录的子目录，则根目录应该显示为虚拟目录
     if (path.isRoot) {
-      final items = _getItemsForPath(path);
+      final items = _getItemsForPath(context, path);
 
       // 如果有文件系统挂载在根目录，使用实际的stat结果
       for (final item in items) {
@@ -636,7 +670,7 @@ class UnionFileSystem extends IFileSystem {
       );
 
       if (hasChildMounts) {
-        logger.fine('Returning virtual root directory status');
+        logger.debug('Returning virtual root directory status');
         return FileStatus(
           path: path,
           isDirectory: true,
@@ -650,10 +684,10 @@ class UnionFileSystem extends IFileSystem {
     }
 
     // 对于非根目录路径，使用原有逻辑
-    final items = _getItemsForPath(path);
+    final items = _getItemsForPath(context, path);
 
     for (final item in items) {
-      final internalPath = _convertPath(path, item.mountPath);
+      final internalPath = _convertPath(context, path, item.mountPath);
       final status = await item.fileSystem.stat(
         context,
         internalPath,
@@ -680,18 +714,21 @@ class UnionFileSystem extends IFileSystem {
     Uint8List data, {
     WriteOptions options = const WriteOptions(),
   }) async {
-    logger.fine(
+    final logger = context.logger;
+    logger.debug(
       'Writing ${data.length} bytes to: $path (mode: ${options.mode})',
     );
 
-    final item = _getFirstWritableItem(path);
+    final item = _getFirstWritableItem(context, path);
     if (item == null) {
       logger.warning('Write bytes failed: no writable filesystem for: $path');
       throw FileSystemException.readOnly(path);
     }
 
-    final internalPath = _convertPath(path, item.mountPath);
-    logger.fine('Writing bytes to filesystem ${item.mountPath}: $internalPath');
+    final internalPath = _convertPath(context, path, item.mountPath);
+    logger.debug(
+      'Writing bytes to filesystem ${item.mountPath}: $internalPath',
+    );
 
     await item.fileSystem.writeBytes(
       context,
@@ -699,6 +736,6 @@ class UnionFileSystem extends IFileSystem {
       data,
       options: options,
     );
-    logger.fine('Successfully wrote ${data.length} bytes to: $path');
+    logger.debug('Successfully wrote ${data.length} bytes to: $path');
   }
 }
