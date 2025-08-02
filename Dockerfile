@@ -13,6 +13,7 @@ RUN dart compile exe bin/vfs_framework.dart -o bin/vfs_framework
 
 # 运行时镜像
 FROM alpine:3.22.1
+COPY --from=build /runtime/ /
 COPY --from=build /app/bin/vfs_framework /app/bin/
 EXPOSE 8080
 CMD ["/app/bin/vfs_framework"]
