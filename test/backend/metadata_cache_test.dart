@@ -26,21 +26,27 @@ void main() {
 
   group('some test', () {
     test('should check file existence correctly', () async {
+      final context = Context();
       // 在origin上写入，在cache上检查
       await originFs.writeBytes(
+        context,
         Path.fromString('/file1.txt'),
         Uint8List.fromList('Content in file1.txt'.codeUnits),
       );
       expect(
-        await metadataCacheFs.exists(Path.fromString('/file1.txt')),
+        await metadataCacheFs.exists(context, Path.fromString('/file1.txt')),
         isTrue,
       );
       expect(
-        await metadataCacheFs.exists(Path.fromString('/nonexistent.txt')),
+        await metadataCacheFs.exists(
+          context,
+          Path.fromString('/nonexistent.txt'),
+        ),
         isFalse,
       );
       // 读取文件内容
       final bytes = await metadataCacheFs.readAsBytes(
+        context,
         Path.fromString('/file1.txt'),
       );
       expect(String.fromCharCodes(bytes), 'Content in file1.txt');
@@ -49,19 +55,26 @@ void main() {
       'list directory should return correct entries',
       timeout: const Timeout(Duration(days: 1)),
       () async {
-        await metadataCacheFs.createDirectory(Path.fromString('/dir1'));
+        final context = Context();
+
+        await metadataCacheFs.createDirectory(
+          context,
+          Path.fromString('/dir1'),
+        );
         await metadataCacheFs.writeBytes(
+          context,
           Path.fromString('/dir1/file2.txt'),
           Uint8List.fromList('Content in dir1/file2.txt'.codeUnits),
         );
         await metadataCacheFs.writeBytes(
+          context,
           Path.fromString('/dir1/file3.txt'),
           Uint8List.fromList('Content in dir1/file3.txt'.codeUnits),
         );
 
         // 列出目录内容
         final entries = await metadataCacheFs
-            .list(Path.fromString('/dir1'))
+            .list(context, Path.fromString('/dir1'))
             .toList();
         expect(entries.length, 2);
         expect(entries[0].path.filename, 'file2.txt');
@@ -69,14 +82,21 @@ void main() {
       },
     );
     test('should recursively list directory', skip: true, () async {
+      final context = Context();
+
       // 在origin上创建嵌套目录和文件
-      await metadataCacheFs.createDirectory(Path.fromString('/dir2'));
+      await metadataCacheFs.createDirectory(context, Path.fromString('/dir2'));
       await metadataCacheFs.writeBytes(
+        context,
         Path.fromString('/dir2/file3.txt'),
         Uint8List.fromList('Content in dir2/file3.txt'.codeUnits),
       );
-      await metadataCacheFs.createDirectory(Path.fromString('/dir2/subdir'));
+      await metadataCacheFs.createDirectory(
+        context,
+        Path.fromString('/dir2/subdir'),
+      );
       await metadataCacheFs.writeBytes(
+        context,
         Path.fromString('/dir2/subdir/file4.txt'),
         Uint8List.fromList('Content in dir2/subdir/file4.txt'.codeUnits),
       );
@@ -84,6 +104,7 @@ void main() {
       // 列出目录内容
       final entries = await metadataCacheFs
           .list(
+            context,
             Path.fromString('/dir2'),
             options: const ListOptions(recursive: true),
           )

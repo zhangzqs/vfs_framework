@@ -10,18 +10,21 @@ void main() {
     late UnionFileSystem unionFs;
 
     setUp(() async {
+      final context = Context();
       memoryFs1 = MemoryFileSystem();
       memoryFs2 = MemoryFileSystem();
 
       // 在第一个文件系统中创建文件
       await memoryFs1.writeBytes(
+        context,
         Path.fromString('/file1.txt'),
         Uint8List.fromList('Hello from filesystem 1'.codeUnits),
       );
-      await memoryFs1.createDirectory(Path.fromString('/dir1'));
+      await memoryFs1.createDirectory(context, Path.fromString('/dir1'));
 
       // 在第二个文件系统中创建文件
       await memoryFs2.writeBytes(
+        context,
         Path.fromString('/file2.txt'),
         Uint8List.fromList('Hello from filesystem 2'.codeUnits),
       );
@@ -39,37 +42,55 @@ void main() {
     });
 
     test('should check file existence correctly', () async {
-      expect(await unionFs.exists(Path.fromString('/file1.txt')), isTrue);
-      expect(await unionFs.exists(Path.fromString('/fs2/file2.txt')), isTrue);
+      final context = Context();
       expect(
-        await unionFs.exists(Path.fromString('/nonexistent.txt')),
+        await unionFs.exists(context, Path.fromString('/file1.txt')),
+        isTrue,
+      );
+      expect(
+        await unionFs.exists(context, Path.fromString('/fs2/file2.txt')),
+        isTrue,
+      );
+      expect(
+        await unionFs.exists(context, Path.fromString('/nonexistent.txt')),
         isFalse,
       );
     });
 
     test('should read files from correct filesystem', () async {
-      final content1 = await unionFs.readAsBytes(Path.fromString('/file1.txt'));
+      final context = Context();
+      final content1 = await unionFs.readAsBytes(
+        context,
+        Path.fromString('/file1.txt'),
+      );
       expect(String.fromCharCodes(content1), equals('Hello from filesystem 1'));
 
       final content2 = await unionFs.readAsBytes(
+        context,
         Path.fromString('/fs2/file2.txt'),
       );
       expect(String.fromCharCodes(content2), equals('Hello from filesystem 2'));
     });
 
     test('should write to first writable filesystem', () async {
+      final context = Context();
       await unionFs.writeBytes(
+        context,
         Path.fromString('/new_file.txt'),
         Uint8List.fromList('New file content'.codeUnits),
       );
 
       // 应该写入到第一个文件系统
-      expect(await memoryFs1.exists(Path.fromString('/new_file.txt')), isTrue);
+      expect(
+        await memoryFs1.exists(context, Path.fromString('/new_file.txt')),
+        isTrue,
+      );
     });
 
     test('should list files from all filesystems', () async {
+      final context = Context();
       final files = <String>[];
-      await for (final status in unionFs.list(Path.rootPath)) {
+      await for (final status in unionFs.list(context, Path.rootPath)) {
         files.add(status.path.toString());
       }
 
@@ -79,6 +100,7 @@ void main() {
     });
 
     test('should handle read-only filesystems', () async {
+      final context = Context();
       final readOnlyUnionFs = UnionFileSystem(
         items: [
           UnionFileSystemItem(
@@ -91,6 +113,7 @@ void main() {
 
       expect(
         () => readOnlyUnionFs.writeBytes(
+          context,
           Path.fromString('/readonly_test.txt'),
           Uint8List.fromList('test'.codeUnits),
         ),
@@ -99,15 +122,18 @@ void main() {
     });
 
     test('should handle priority and file override correctly', () async {
+      final context = Context();
       final systemFs = MemoryFileSystem();
       final userFs = MemoryFileSystem();
 
       // 系统和用户都有同名文件
       await systemFs.writeBytes(
+        context,
         Path.fromString('/config.ini'),
         Uint8List.fromList('system_config=default'.codeUnits),
       );
       await userFs.writeBytes(
+        context,
         Path.fromString('/config.ini'),
         Uint8List.fromList('user_setting=custom'.codeUnits),
       );
@@ -130,17 +156,20 @@ void main() {
 
       // 用户文件应该覆盖系统文件
       final content = await priorityUnionFs.readAsBytes(
+        context,
         Path.fromString('/config.ini'),
       );
       expect(String.fromCharCodes(content), equals('user_setting=custom'));
     });
 
     test('should handle mount path specificity correctly', () async {
+      final context = Context();
       final rootFs = MemoryFileSystem();
       final tmpFs = MemoryFileSystem();
 
       // 在临时文件系统中创建文件
       await tmpFs.writeBytes(
+        context,
         Path.fromString('/session.dat'),
         Uint8List.fromList('temp session data'.codeUnits),
       );
@@ -162,30 +191,37 @@ void main() {
 
       // 读取挂载点的文件
       final content = await mountUnionFs.readAsBytes(
+        context,
         Path.fromString('/tmp/session.dat'),
       );
       expect(String.fromCharCodes(content), equals('temp session data'));
 
       // 写入到挂载点应该选择最具体的文件系统（tmpFs）
       await mountUnionFs.writeBytes(
+        context,
         Path.fromString('/tmp/new_session.txt'),
         Uint8List.fromList('new session'.codeUnits),
       );
 
       // 验证文件被写入到临时文件系统
-      expect(await tmpFs.exists(Path.fromString('/new_session.txt')), isTrue);
       expect(
-        await rootFs.exists(Path.fromString('/tmp/new_session.txt')),
+        await tmpFs.exists(context, Path.fromString('/new_session.txt')),
+        isTrue,
+      );
+      expect(
+        await rootFs.exists(context, Path.fromString('/tmp/new_session.txt')),
         isFalse,
       );
     });
 
     test('should handle cross-filesystem copy operations', () async {
+      final context = Context();
       final sourceFs = MemoryFileSystem();
       final destFs = MemoryFileSystem();
 
       // 在源文件系统中创建文件
       await sourceFs.writeBytes(
+        context,
         Path.fromString('/source.txt'),
         Uint8List.fromList('source content'.codeUnits),
       );
@@ -207,34 +243,38 @@ void main() {
 
       // 跨文件系统拷贝
       await copyUnionFs.copy(
+        context,
         Path.fromString('/src/source.txt'),
         Path.fromString('/dest/copied.txt'),
       );
 
       // 验证拷贝成功
       expect(
-        await copyUnionFs.exists(Path.fromString('/dest/copied.txt')),
+        await copyUnionFs.exists(context, Path.fromString('/dest/copied.txt')),
         isTrue,
       );
 
       final copiedContent = await copyUnionFs.readAsBytes(
+        context,
         Path.fromString('/dest/copied.txt'),
       );
       expect(String.fromCharCodes(copiedContent), equals('source content'));
 
       // 验证原文件仍然存在
       expect(
-        await copyUnionFs.exists(Path.fromString('/src/source.txt')),
+        await copyUnionFs.exists(context, Path.fromString('/src/source.txt')),
         isTrue,
       );
     });
 
     test('should handle cross-filesystem move operations', () async {
+      final context = Context();
       final sourceFs = MemoryFileSystem();
       final destFs = MemoryFileSystem();
 
       // 在源文件系统中创建文件
       await sourceFs.writeBytes(
+        context,
         Path.fromString('/moveme.txt'),
         Uint8List.fromList('move content'.codeUnits),
       );
@@ -256,38 +296,43 @@ void main() {
 
       // 跨文件系统移动
       await moveUnionFs.move(
+        context,
         Path.fromString('/src/moveme.txt'),
         Path.fromString('/dest/moved.txt'),
       );
 
       // 验证文件被移动
       expect(
-        await moveUnionFs.exists(Path.fromString('/dest/moved.txt')),
+        await moveUnionFs.exists(context, Path.fromString('/dest/moved.txt')),
         isTrue,
       );
       expect(
-        await moveUnionFs.exists(Path.fromString('/src/moveme.txt')),
+        await moveUnionFs.exists(context, Path.fromString('/src/moveme.txt')),
         isFalse,
       );
 
       final movedContent = await moveUnionFs.readAsBytes(
+        context,
         Path.fromString('/dest/moved.txt'),
       );
       expect(String.fromCharCodes(movedContent), equals('move content'));
     });
 
     test('should handle directory operations correctly', () async {
+      final context = Context();
       final fs1 = MemoryFileSystem();
       final fs2 = MemoryFileSystem();
 
-      await fs1.createDirectory(Path.fromString('/shared'));
+      await fs1.createDirectory(context, Path.fromString('/shared'));
       await fs1.writeBytes(
+        context,
         Path.fromString('/shared/file1.txt'),
         Uint8List.fromList('from fs1'.codeUnits),
       );
 
-      await fs2.createDirectory(Path.fromString('/shared'));
+      await fs2.createDirectory(context, Path.fromString('/shared'));
       await fs2.writeBytes(
+        context,
         Path.fromString('/shared/file2.txt'),
         Uint8List.fromList('from fs2'.codeUnits),
       );
@@ -309,7 +354,10 @@ void main() {
 
       // 列出目录内容应该合并来自不同文件系统的文件
       final sharedFiles = <String>[];
-      await for (final status in dirUnionFs.list(Path.fromString('/shared'))) {
+      await for (final status in dirUnionFs.list(
+        context,
+        Path.fromString('/shared'),
+      )) {
         sharedFiles.add(status.path.toString());
       }
 
@@ -318,6 +366,7 @@ void main() {
       // 列出fs2挂载点下的目录
       final fs2Files = <String>[];
       await for (final status in dirUnionFs.list(
+        context,
         Path.fromString('/fs2/shared'),
       )) {
         fs2Files.add(status.path.toString());
@@ -327,10 +376,12 @@ void main() {
     });
 
     test('should handle overwrite operations correctly', () async {
+      final context = Context();
       final fs = MemoryFileSystem();
 
       // 创建初始文件
       await fs.writeBytes(
+        context,
         Path.fromString('/overwrite_test.txt'),
         Uint8List.fromList('original content'.codeUnits),
       );
@@ -347,6 +398,7 @@ void main() {
 
       // 覆盖写入
       await overwriteUnionFs.writeBytes(
+        context,
         Path.fromString('/overwrite_test.txt'),
         Uint8List.fromList('new content'.codeUnits),
         options: const WriteOptions(mode: WriteMode.overwrite),
@@ -354,30 +406,35 @@ void main() {
 
       // 验证内容被覆盖
       final content = await overwriteUnionFs.readAsBytes(
+        context,
         Path.fromString('/overwrite_test.txt'),
       );
       expect(String.fromCharCodes(content), equals('new content'));
     });
 
     test('should handle complex three-layer filesystem setup', () async {
+      final context = Context();
       final systemFs = MemoryFileSystem();
       final userFs = MemoryFileSystem();
       final tempFs = MemoryFileSystem();
 
       // 设置类似Unix的文件系统结构
       await systemFs.writeBytes(
+        context,
         Path.fromString('/system.conf'),
         Uint8List.fromList('system_config=true'.codeUnits),
       );
-      await systemFs.createDirectory(Path.fromString('/bin'));
+      await systemFs.createDirectory(context, Path.fromString('/bin'));
 
       await userFs.writeBytes(
+        context,
         Path.fromString('/config.ini'),
         Uint8List.fromList('user_setting=custom'.codeUnits),
       );
-      await userFs.createDirectory(Path.fromString('/documents'));
+      await userFs.createDirectory(context, Path.fromString('/documents'));
 
       await tempFs.writeBytes(
+        context,
         Path.fromString('/cache.tmp'),
         Uint8List.fromList('temp cache'.codeUnits),
       );
@@ -404,21 +461,21 @@ void main() {
 
       // 验证各层文件都可访问
       expect(
-        await complexUnionFs.exists(Path.fromString('/config.ini')),
+        await complexUnionFs.exists(context, Path.fromString('/config.ini')),
         isTrue,
       );
       expect(
-        await complexUnionFs.exists(Path.fromString('/system.conf')),
+        await complexUnionFs.exists(context, Path.fromString('/system.conf')),
         isTrue,
       );
       expect(
-        await complexUnionFs.exists(Path.fromString('/tmp/cache.tmp')),
+        await complexUnionFs.exists(context, Path.fromString('/tmp/cache.tmp')),
         isTrue,
       );
 
       // 验证目录列表包含所有挂载点
       final rootFiles = <String>[];
-      await for (final status in complexUnionFs.list(Path.rootPath)) {
+      await for (final status in complexUnionFs.list(context, Path.rootPath)) {
         rootFiles.add(status.path.toString());
       }
 
@@ -432,13 +489,22 @@ void main() {
 
   group('UnionFileSystem Root Directory Tests', () {
     test('root directory should exist when child mounts are present', () async {
+      final context = Context();
       // 创建两个内存文件系统
       final fs1 = MemoryFileSystem();
       final fs2 = MemoryFileSystem();
 
       // 在fs1中创建一些测试文件
-      await fs1.writeBytes(Path(['test1.txt']), Uint8List.fromList([1, 2, 3]));
-      await fs2.writeBytes(Path(['test2.txt']), Uint8List.fromList([4, 5, 6]));
+      await fs1.writeBytes(
+        context,
+        Path(['test1.txt']),
+        Uint8List.fromList([1, 2, 3]),
+      );
+      await fs2.writeBytes(
+        context,
+        Path(['test2.txt']),
+        Uint8List.fromList([4, 5, 6]),
+      );
 
       // 创建Union文件系统，没有挂载到根目录的文件系统
       final unionFs = UnionFileSystem(
@@ -457,7 +523,7 @@ void main() {
       );
 
       // 测试根目录应该存在
-      final rootExists = await unionFs.exists(Path.rootPath);
+      final rootExists = await unionFs.exists(context, Path.rootPath);
       expect(
         rootExists,
         isTrue,
@@ -465,7 +531,7 @@ void main() {
       );
 
       // 测试根目录的stat应该返回目录状态
-      final rootStat = await unionFs.stat(Path.rootPath);
+      final rootStat = await unionFs.stat(context, Path.rootPath);
       expect(
         rootStat,
         isNotNull,
@@ -482,11 +548,12 @@ void main() {
     test(
       'root directory should not exist when no mounts are present',
       () async {
+        final context = Context();
         // 创建空的Union文件系统
         final unionFs = UnionFileSystem(items: []);
 
         // 测试根目录不应该存在
-        final rootExists = await unionFs.exists(Path.rootPath);
+        final rootExists = await unionFs.exists(context, Path.rootPath);
         expect(
           rootExists,
           isFalse,
@@ -494,7 +561,7 @@ void main() {
         );
 
         // 测试根目录的stat应该返回null
-        final rootStat = await unionFs.stat(Path.rootPath);
+        final rootStat = await unionFs.stat(context, Path.rootPath);
         expect(
           rootStat,
           isNull,
@@ -507,16 +574,19 @@ void main() {
     test(
       'root directory should use actual filesystem when mounted at root',
       () async {
+        final context = Context();
         // 创建内存文件系统
         final rootFs = MemoryFileSystem();
         final childFs = MemoryFileSystem();
 
         // 在根文件系统中创建文件
         await rootFs.writeBytes(
+          context,
           Path(['root_file.txt']),
           Uint8List.fromList([1, 2, 3]),
         );
         await childFs.writeBytes(
+          context,
           Path(['child_file.txt']),
           Uint8List.fromList([4, 5, 6]),
         );
@@ -538,11 +608,14 @@ void main() {
         );
 
         // 测试根目录应该存在
-        final rootExists = await unionFs.exists(Path.rootPath);
+        final rootExists = await unionFs.exists(context, Path.rootPath);
         expect(rootExists, isTrue, reason: 'Root directory should exist');
 
         // 测试可以访问根文件系统中的文件
-        final rootFileExists = await unionFs.exists(Path(['root_file.txt']));
+        final rootFileExists = await unionFs.exists(
+          context,
+          Path(['root_file.txt']),
+        );
         expect(
           rootFileExists,
           isTrue,
@@ -551,6 +624,7 @@ void main() {
 
         // 测试可以访问子挂载点中的文件
         final childFileExists = await unionFs.exists(
+          context,
           Path(['data', 'child_file.txt']),
         );
         expect(
@@ -562,6 +636,7 @@ void main() {
     );
 
     test('root directory listing should show mount points', () async {
+      final context = Context();
       // 创建两个内存文件系统
       final fs1 = MemoryFileSystem();
       final fs2 = MemoryFileSystem();
@@ -583,7 +658,7 @@ void main() {
       );
 
       // 列出根目录内容
-      final rootListing = await unionFs.list(Path.rootPath).toList();
+      final rootListing = await unionFs.list(context, Path.rootPath).toList();
 
       // 应该包含挂载点
       final mountPointNames = rootListing.map((f) => f.path.filename).toSet();

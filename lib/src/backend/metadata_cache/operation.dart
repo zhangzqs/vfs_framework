@@ -231,10 +231,7 @@ class MetadataCacheOperation {
   }
 
   /// 获取文件状态（优先从缓存）
-  Future<FileStatus?> getFileStatus(
-    Context context,
-    Path path,
-  ) async {
+  Future<FileStatus?> getFileStatus(Context context, Path path) async {
     final logger = context.logger;
     try {
       // 首先尝试从缓存读取
@@ -264,10 +261,7 @@ class MetadataCacheOperation {
   }
 
   /// 获取目录列表（优先从缓存）
-  Stream<FileStatus> listDirectory(
-    Context context,
-    Path path,
-  ) async* {
+  Stream<FileStatus> listDirectory(Context context, Path path) async* {
     final logger = context.logger;
     try {
       // 首先尝试从缓存读取

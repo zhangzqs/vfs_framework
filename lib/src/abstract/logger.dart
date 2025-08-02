@@ -49,7 +49,7 @@ class Logger {
     _sink.add(record);
   }
 
-  /// 从堆栈跟踪中提取文件名
+  /// 从堆栈跟踪中提取文件名和行号
   String? _extractFilenameFromStackTrace() {
     try {
       final stackTrace = StackTrace.current;
@@ -60,10 +60,18 @@ class Logger {
         if (line.contains('.dart') &&
             !line.contains('logger.dart') &&
             !line.contains('Logger.')) {
-          // 提取文件名，格式通常是: #1      method (file:///path/to/file.dart:line:column)
-          final match = RegExp(r'([^/\\]+\.dart)').firstMatch(line);
+          // 提取文件名和行号，格式通常是: #1      method (file:///path/to/file.dart:line:column)
+          final match = RegExp(r'([^/\\]+\.dart):(\d+):(\d+)').firstMatch(line);
           if (match != null) {
-            return match.group(1);
+            final filename = match.group(1);
+            final lineNumber = match.group(2);
+            return '$filename:$lineNumber';
+          }
+
+          // 备用匹配模式，只有文件名没有行号的情况
+          final filenameMatch = RegExp(r'([^/\\]+\.dart)').firstMatch(line);
+          if (filenameMatch != null) {
+            return filenameMatch.group(1);
           }
         }
       }
@@ -173,6 +181,19 @@ class LogRecord {
   final StackTrace? stackTrace;
   final Map<String, Object>? metadata;
   final String? filename;
+
+  @override
+  String toString() {
+    final buffer = StringBuffer()..write('[${level.name.toUpperCase()}]');
+
+    if (filename != null) {
+      buffer.write(' ($filename)');
+    }
+
+    buffer.write(': $message');
+
+    return buffer.toString();
+  }
 }
 
 class LogRecordJsonAdapter implements StreamSink<LogRecord> {
@@ -220,22 +241,39 @@ class LogRecordConsoleAdapter implements StreamSink<LogRecord> {
 
   void _print(LogRecord record) {
     final buffer = StringBuffer()
-      ..write('[${record.level.name}] ')
-      ..write(record.time.toIso8601String())
-      ..write(' | ')
-      ..write(record.filename != null ? '${record.filename} | ' : '')
-      ..write(' - ')
-      ..write(record.message);
+      ..write('[${record.level.name.toUpperCase()}] ');
+
+    // 添加时间戳（简化格式）
+    final time = record.time;
+    buffer.write(
+      '${time.hour.toString().padLeft(2, '0')}:'
+      '${time.minute.toString().padLeft(2, '0')}:'
+      '${time.second.toString().padLeft(2, '0')}',
+    );
+
+    // 添加文件名和行号
+    if (record.filename != null) {
+      buffer.write(' (${record.filename})');
+    }
+
+    buffer.write(': ${record.message}');
+
+    // 如果有错误，添加错误信息
     if (record.error != null) {
       buffer.write(' | Error: ${record.error}');
     }
-    if (record.stackTrace != null) {
-      buffer.write(' | StackTrace: ${record.stackTrace}');
-    }
+
+    // 如果有元数据，添加元数据信息
     if (record.metadata != null && record.metadata!.isNotEmpty) {
-      buffer.write(' | Metadata: ${record.metadata}');
+      buffer.write(' | ${record.metadata}');
     }
+
     print(buffer.toString());
+
+    // 如果有堆栈跟踪，单独打印
+    if (record.stackTrace != null) {
+      print('StackTrace:\n${record.stackTrace}');
+    }
   }
 
   @override

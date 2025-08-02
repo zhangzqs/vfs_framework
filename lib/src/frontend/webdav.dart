@@ -64,11 +64,7 @@ class WebDAVServer {
   late final _routerHandler =
       <
         String,
-        Future<Response> Function(
-          Context context,
-          Path path,
-          Request request,
-        )
+        Future<Response> Function(Context context, Path path, Request request)
       >{
         'GET': _handleGet,
         'PUT': _handlePut,
@@ -379,10 +375,7 @@ class WebDAVServer {
   }
 
   /// 处理目录列表（HTML格式）
-  Future<Response> _handleDirectoryListing(
-    Context context,
-    Path path,
-  ) async {
+  Future<Response> _handleDirectoryListing(Context context, Path path) async {
     final items = <String>[];
 
     await for (final item in fs.list(context, path)) {
@@ -464,28 +457,11 @@ class WebDAVServer {
       if (fileSize != null) 'Content-Length': fileSize.toString(),
     };
     logger.debug('下载文件: $path, MIME类型: $mimeType, 大小: $fileSize');
-    final streamController = StreamController<List<int>>();
-    unawaited(
-      Future.microtask(() async {
-        final stream = fs.openRead(context, path);
-        await for (final chunk in stream) {
-          // if (streamController.isClosed) {
-          //   logger.warning('下载流已关闭，停止发送数据: $path');
-          //   break;
-          // }
-          streamController.add(chunk);
-        }
-        await streamController.close();
-        logger.debug('文件下载完成: $path');
-      }).catchError((e) {
-        logger.error('下载文件时出错: $e');
-        if (!streamController.isClosed) streamController.close();
-      }),
-    );
+
     return Response.ok(
-      streamController,
+      fs.openRead(context, path),
       headers: headers,
-      context: {...request.context, 'shelf.io.buffer_output': false}, // 关闭缓冲
+      context: {'shelf.io.buffer_output': false}, // 关闭缓冲
     );
   }
 
@@ -573,6 +549,7 @@ class WebDAVServer {
         206, // Partial Content
         body: stream,
         headers: headers,
+        // context: {'shelf.io.buffer_output': false}, // 关闭缓冲
       );
     } catch (e) {
       logger.warning('解析Range头时出错: $rangeHeader, 错误: $e');
@@ -585,11 +562,7 @@ class WebDAVServer {
   }
 
   /// 构建PROPFIND响应
-  String _buildPropfindResponse(
-    Context context,
-    Path path,
-    FileStatus status,
-  ) {
+  String _buildPropfindResponse(Context context, Path path, FileStatus status) {
     final href = _buildHrefForPath(path, status.isDirectory);
     final isCollection = status.isDirectory;
     final size = status.size ?? 0;

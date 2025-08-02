@@ -7,15 +7,17 @@ import 'package:test/test.dart';
 import 'package:vfs_framework/vfs_framework.dart';
 
 Future<void> clearFileSystem(IFileSystem fs) async {
-  for (final entry in await fs.list(Path.rootPath).toList()) {
+  final context = Context();
+  for (final entry in await fs.list(context, Path.rootPath).toList()) {
     try {
       if (entry.isDirectory) {
         await fs.delete(
+          context,
           entry.path,
           options: const DeleteOptions(recursive: true),
         );
       } else {
-        await fs.delete(entry.path);
+        await fs.delete(context, entry.path);
       }
     } on FileSystemException catch (e) {
       if (e.code == FileSystemErrorCode.notFound) {
@@ -59,7 +61,8 @@ class BenchmarkFileSystemStat extends AsyncBenchmarkBase {
 
   @override
   Future<void> run() async {
-    final ret = await fileSystem.stat(Path.fromString('/stat'));
+    final context = Context();
+    final ret = await fileSystem.stat(context, Path.fromString('/stat'));
     if (exists) {
       if (isDirectory) {
         assert(ret!.isDirectory == true);
@@ -75,14 +78,17 @@ class BenchmarkFileSystemStat extends AsyncBenchmarkBase {
 
   @override
   Future<void> setup() async {
+    final context = Context();
     if (exists) {
       if (isDirectory) {
         await fileSystem.createDirectory(
+          context,
           Path.fromString('/stat'),
           options: const CreateDirectoryOptions(),
         );
       } else {
         final s = await fileSystem.openWrite(
+          context,
           Path.fromString('/stat'),
           options: const WriteOptions(),
         );
@@ -90,7 +96,7 @@ class BenchmarkFileSystemStat extends AsyncBenchmarkBase {
         await s.close();
       }
     } else {
-      if (await fileSystem.exists(Path.fromString('/stat'))) {
+      if (await fileSystem.exists(context, Path.fromString('/stat'))) {
         throw StateError('File or directory should not exist, but it does.');
       }
     }

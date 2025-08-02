@@ -14,6 +14,10 @@ Context mustGetContextFromRequest(Request request) {
   return context;
 }
 
+Request withContext(Request request, Context context) {
+  return request.change(context: {...request.context, _middlewareKey: context});
+}
+
 Middleware contextMiddleware(Logger logger) {
   return (Handler handler) {
     return (Request request) async {
@@ -25,38 +29,48 @@ Middleware contextMiddleware(Logger logger) {
       logger = context.logger;
 
       // 将上下文添加到请求中
-      final newRequest = request.change(
-        context: {...request.context, _middlewareKey: context},
-      );
+      final newRequest = withContext(request, context);
 
       try {
-        logger.trace(
-          'Handling request: ${newRequest.method} ${newRequest.url}',
-        );
+        logger.trace('请求到来: ${newRequest.method} ${newRequest.url}');
         final response = await handler(newRequest);
         logger.trace(
-          'Request handled: ${newRequest.method} ${newRequest.url} '
+          '响应已发出: ${newRequest.method} ${newRequest.url} '
           '-> ${response.statusCode}',
         );
 
         // 监听响应流完成或错误
         if (response.contentLength == null || response.contentLength! > 0) {
-          final streamController = StreamController<List<int>>();
-
-          response.read().listen(
-            streamController.add,
-            onError: (Object error) {
-              logger.error('Response stream error: $error');
-              context.cancel('Response stream error: $error');
-              streamController.addError(error);
+          late final StreamController<List<int>> streamController;
+          streamController = StreamController<List<int>>(
+            sync: true,
+            onListen: () {
+              response.read().listen(
+                (data) {
+                  if (streamController.isClosed) return;
+                  streamController.add(data);
+                },
+                onError: (Object error) {
+                  logger.error('响应流错误: $error');
+                  if (streamController.isClosed) return;
+                  context.cancel('Response stream error: $error');
+                  streamController.addError(error);
+                },
+                onDone: () async {
+                  logger.trace('响应流结束');
+                  if (streamController.isClosed) return;
+                  context.cancel('Response completed');
+                  await streamController.close();
+                },
+              );
             },
-            onDone: () async {
-              logger.trace('Response completed');
-              context.cancel('Response completed');
+            onCancel: () async {
+              if (streamController.isClosed) return;
+              logger.debug('响应流已取消: ${newRequest.url}');
+              context.cancel('Response stream cancelled');
               await streamController.close();
             },
           );
-
           return response.change(
             body: streamController.stream,
             headers: {...response.headers, 'X-Request-ID': requestID},

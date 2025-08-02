@@ -10,9 +10,9 @@
     username: "admin"
     password: "test"
     httpOptions:
-      connectTimeout: 10s
-      receiveTimeout: 10s
-      sendTimeout: 10s
+      connectTimeout: 60s
+      receiveTimeout: 60s
+      sendTimeout: 60s
 
 - name: metadata_cache_fs
   type: backend.metadata_cache

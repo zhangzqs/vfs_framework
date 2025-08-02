@@ -26,21 +26,27 @@ void main() {
 
     group('some test', () {
       test('should check file existence correctly', () async {
+        final context = Context();
         // 在base上写入，在blockCache上检查
         await blockCacheFs.writeBytes(
+          context,
           Path.fromString('/file1.txt'),
           Uint8List.fromList('Content in file1.txt'.codeUnits),
         );
         expect(
-          await blockCacheFs.exists(Path.fromString('/file1.txt')),
+          await blockCacheFs.exists(context, Path.fromString('/file1.txt')),
           isTrue,
         );
         expect(
-          await blockCacheFs.exists(Path.fromString('/nonexistent.txt')),
+          await blockCacheFs.exists(
+            context,
+            Path.fromString('/nonexistent.txt'),
+          ),
           isFalse,
         );
         // 读取文件内容
         final bytes = await blockCacheFs.readAsBytes(
+          context,
           Path.fromString('/file1.txt'),
         );
         expect(String.fromCharCodes(bytes), 'Content in file1.txt');
@@ -66,11 +72,17 @@ void main() {
     });
 
     test('should demonstrate read-ahead functionality', () async {
+      final context = Context();
+
       final testPath = Path.fromString('/large_file.txt');
 
       // 创建一个10KB的文件（10个块）
       final fileContent = List.generate(10 * 1024, (i) => i % 256);
-      await originFs.writeBytes(testPath, Uint8List.fromList(fileContent));
+      await originFs.writeBytes(
+        context,
+        testPath,
+        Uint8List.fromList(fileContent),
+      );
 
       print('\\n=== Read-Ahead Test ===');
       print('File size: ${fileContent.length} bytes');
@@ -81,6 +93,7 @@ void main() {
       // 顺序读取前几个块
       print('\\n--- Reading first 512 bytes (block 0) ---');
       final firstRead = await blockCacheFs.readAsBytes(
+        context,
         testPath,
         options: const ReadOptions(start: 0, end: 512),
       );
@@ -91,43 +104,52 @@ void main() {
 
       // 检查缓存中应该有更多块被预读
       print('\\n--- Checking cache after first read ---');
-      await _printCacheStatus(cacheFs, 'After reading block 0');
+      await _printCacheStatus(context, cacheFs, 'After reading block 0');
 
       // 读取第二个块（应该从缓存命中）
       print('\\n--- Reading bytes 1024-2048 (block 1) ---');
       final secondRead = await blockCacheFs.readAsBytes(
+        context,
         testPath,
         options: const ReadOptions(start: 1024, end: 2048),
       );
       expect(secondRead.length, equals(1024));
 
       await Future<void>.delayed(const Duration(milliseconds: 100));
-      await _printCacheStatus(cacheFs, 'After reading block 1');
+      await _printCacheStatus(context, cacheFs, 'After reading block 1');
 
       // 读取第三个块（应该从缓存命中）
       print('\\n--- Reading bytes 2048-3072 (block 2) ---');
       final thirdRead = await blockCacheFs.readAsBytes(
+        context,
         testPath,
         options: const ReadOptions(start: 2048, end: 3072),
       );
       expect(thirdRead.length, equals(1024));
 
       await Future<void>.delayed(const Duration(milliseconds: 100));
-      await _printCacheStatus(cacheFs, 'After reading block 2');
+      await _printCacheStatus(context, cacheFs, 'After reading block 2');
     });
 
     test('should not trigger read-ahead for non-sequential access', () async {
+      final context = Context();
+
       final testPath = Path.fromString('/test_file.txt');
 
       // 创建一个5KB的文件
       final fileContent = List.generate(5 * 1024, (i) => i % 256);
-      await originFs.writeBytes(testPath, Uint8List.fromList(fileContent));
+      await originFs.writeBytes(
+        context,
+        testPath,
+        Uint8List.fromList(fileContent),
+      );
 
       print('\\n=== Non-Sequential Access Test ===');
 
       // 读取第一个块
       print('Reading block 0...');
       await blockCacheFs.readAsBytes(
+        context,
         testPath,
         options: const ReadOptions(start: 0, end: 1024),
       );
@@ -137,20 +159,27 @@ void main() {
       // 跳跃读取第三个块（非顺序）
       print('Reading block 3 (non-sequential)...');
       await blockCacheFs.readAsBytes(
+        context,
         testPath,
         options: const ReadOptions(start: 3072, end: 4096),
       );
 
       await Future<void>.delayed(const Duration(milliseconds: 100));
-      await _printCacheStatus(cacheFs, 'After non-sequential access');
+      await _printCacheStatus(context, cacheFs, 'After non-sequential access');
     });
 
     test('should handle read-ahead with file boundaries', () async {
+      final context = Context();
+
       final testPath = Path.fromString('/small_file.txt');
 
       // 创建一个2.5KB的文件（不到3个完整块）
       final fileContent = List.generate(2560, (i) => i % 256); // 2.5KB
-      await originFs.writeBytes(testPath, Uint8List.fromList(fileContent));
+      await originFs.writeBytes(
+        context,
+        testPath,
+        Uint8List.fromList(fileContent),
+      );
 
       print('\\n=== File Boundary Test ===');
       print('File size: ${fileContent.length} bytes (2.5 blocks)');
@@ -158,24 +187,34 @@ void main() {
       // 读取第一个块
       print('Reading block 0...');
       await blockCacheFs.readAsBytes(
+        context,
         testPath,
         options: const ReadOptions(start: 0, end: 1024),
       );
 
       await Future<void>.delayed(const Duration(milliseconds: 100));
-      await _printCacheStatus(cacheFs, 'After reading from small file');
+      await _printCacheStatus(
+        context,
+        cacheFs,
+        'After reading from small file',
+      );
     });
   });
 }
 
 /// 辅助函数：打印缓存状态
-Future<void> _printCacheStatus(MemoryFileSystem cacheFs, String context) async {
+Future<void> _printCacheStatus(
+  Context ctx,
+  MemoryFileSystem cacheFs,
+  String context,
+) async {
   print('\\n$context:');
   var blockCount = 0;
   var metaCount = 0;
 
   try {
     await for (final entry in cacheFs.list(
+      ctx,
       Path.rootPath,
       options: const ListOptions(recursive: true),
     )) {

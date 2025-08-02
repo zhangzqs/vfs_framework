@@ -23,10 +23,7 @@ class UnionFileSystem extends IFileSystem {
   final List<UnionFileSystemItem> _items;
 
   /// 获取路径对应的文件系统项，按优先级排序
-  List<UnionFileSystemItem> _getItemsForPath(
-    Context context,
-    Path path,
-  ) {
+  List<UnionFileSystemItem> _getItemsForPath(Context context, Path path) {
     final logger = context.logger;
     final items = _items.where((item) {
       // 检查路径是否在该文件系统的挂载点下
@@ -106,10 +103,7 @@ class UnionFileSystem extends IFileSystem {
   }
 
   /// 获取第一个可写的文件系统项，优先选择最具体的挂载点
-  UnionFileSystemItem? _getFirstWritableItem(
-    Context context,
-    Path path,
-  ) {
+  UnionFileSystemItem? _getFirstWritableItem(Context context, Path path) {
     final logger = context.logger;
     logger.debug('Searching for writable item for path: $path');
     final items = _getItemsForPath(

@@ -3,10 +3,12 @@ import 'dart:typed_data';
 import 'package:shelf/shelf.dart';
 
 import 'package:test/test.dart';
+import 'package:vfs_framework/src/helper/context_shelf_middleware.dart';
 import 'package:vfs_framework/vfs_framework.dart';
 
 void main() {
   group('HttpServer Tests', () {
+    final context = Context();
     late MemoryFileSystem fs;
     late HttpServer httpServer;
 
@@ -15,17 +17,20 @@ void main() {
       httpServer = HttpServer(fs);
 
       // 创建测试文件和目录结构
-      await fs.createDirectory(Path(['documents']));
-      await fs.createDirectory(Path(['documents', 'subfolder']));
+      await fs.createDirectory(context, Path(['documents']));
+      await fs.createDirectory(context, Path(['documents', 'subfolder']));
       await fs.writeBytes(
+        context,
         Path(['documents', 'test.txt']),
         Uint8List.fromList('Hello, World!'.codeUnits),
       );
       await fs.writeBytes(
+        context,
         Path(['documents', 'subfolder', 'nested.txt']),
         Uint8List.fromList('Nested file content'.codeUnits),
       );
       await fs.writeBytes(
+        context,
         Path(['root-file.md']),
         Uint8List.fromList('# Root File\nThis is a root file.'.codeUnits),
       );
@@ -33,7 +38,9 @@ void main() {
 
     test('应该能列举根目录', () async {
       final request = Request('GET', Uri.parse('http://localhost:8080/'));
-      final response = await httpServer.handleRequest(request);
+      final response = await httpServer.handleRequest(
+        withContext(request, context),
+      );
 
       expect(response.statusCode, equals(200));
       expect(response.headers['content-type'], contains('text/html'));
@@ -49,8 +56,9 @@ void main() {
         Uri.parse('http://localhost:8080/documents'),
         headers: {'accept': 'application/json'},
       );
-      final response = await httpServer.handleRequest(request);
-
+      final response = await httpServer.handleRequest(
+        withContext(request, context),
+      );
       expect(response.statusCode, equals(200));
       expect(response.headers['content-type'], contains('application/json'));
 
@@ -76,8 +84,9 @@ void main() {
         Uri.parse('http://localhost:8080/documents?recursive=true'),
         headers: {'accept': 'application/json'},
       );
-      final response = await httpServer.handleRequest(request);
-
+      final response = await httpServer.handleRequest(
+        withContext(request, context),
+      );
       expect(response.statusCode, equals(200));
 
       final body = await response.readAsString();
@@ -93,8 +102,9 @@ void main() {
         'GET',
         Uri.parse('http://localhost:8080/documents/test.txt'),
       );
-      final response = await httpServer.handleRequest(request);
-
+      final response = await httpServer.handleRequest(
+        withContext(request, context),
+      );
       expect(response.statusCode, equals(200));
       expect(response.headers['content-type'], equals('text/plain'));
       expect(response.headers['content-disposition'], contains('test.txt'));
@@ -109,8 +119,9 @@ void main() {
         Uri.parse('http://localhost:8080/documents/test.txt'),
         headers: {'range': 'bytes=0-4'},
       );
-      final response = await httpServer.handleRequest(request);
-
+      final response = await httpServer.handleRequest(
+        withContext(request, context),
+      );
       expect(response.statusCode, equals(206)); // Partial Content
       expect(response.headers['content-range'], equals('bytes 0-4/13'));
       expect(response.headers['accept-ranges'], equals('bytes'));
@@ -124,8 +135,9 @@ void main() {
         'GET',
         Uri.parse('http://localhost:8080/nonexistent.txt'),
       );
-      final response = await httpServer.handleRequest(request);
-
+      final response = await httpServer.handleRequest(
+        withContext(request, context),
+      );
       expect(response.statusCode, equals(404));
     });
 
@@ -137,8 +149,9 @@ void main() {
       );
 
       // 首先手动触发GET请求到目录，但不允许列表
-      final response = await httpServer.handleRequest(request);
-
+      final response = await httpServer.handleRequest(
+        withContext(request, context),
+      );
       // 由于我们的实现会自动检测目录并返回列表，这个测试需要调整
       // 让我们测试一个不同的场景
       expect(response.statusCode, anyOf([200, 400]));
@@ -146,8 +159,9 @@ void main() {
 
     test('应该正确处理根路径', () async {
       final request = Request('GET', Uri.parse('http://localhost:8080/'));
-      final response = await httpServer.handleRequest(request);
-
+      final response = await httpServer.handleRequest(
+        withContext(request, context),
+      );
       expect(response.statusCode, equals(200));
       expect(response.headers['content-type'], contains('text/html'));
     });
@@ -158,8 +172,9 @@ void main() {
         Uri.parse('http://localhost:8080/'),
         headers: {'accept': 'application/json'},
       );
-      final response = await httpServer.handleRequest(request);
-
+      final response = await httpServer.handleRequest(
+        withContext(request, context),
+      );
       final body = await response.readAsString();
       final data = json.decode(body) as Map<String, dynamic>;
       final files = data['files'] as List;
