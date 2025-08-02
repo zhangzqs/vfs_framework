@@ -47,11 +47,11 @@ class CacheOperation {
     final hash = _generatePathHash(context, path);
     // 使用前2位作为第一层目录 (每个level1下4096种可能)
     final level1 = hash.substring(0, 3);
-    // 使用第3-4位作为第二层目录 (每个level2下4096种可能)
+    // 使用第4-6个字符作为第二层目录 (每个level2下4096种可能)
     final level2 = hash.substring(3, 6);
     // 第三级目录使用剩余的hash值
     final level3 = hash.substring(6);
-    // 构建分层路径: cacheDir/abc/def/1234ef567890/
+    // 构建分层路径: cacheDir/abc/def/1234567890/
     final hierarchicalPath = cacheDir.join(level1).join(level2).join(level3);
 
     logger.trace(
@@ -96,9 +96,11 @@ class CacheOperation {
       );
       return; // 无效的读取范围
     }
+
     // 计算涉及的块范围
     final startBlockIdx = startOffset ~/ blockSize;
-    final endBlockIdx = (endOffset - 1) ~/ blockSize;
+    // 确保endOffset不会导致负数计算
+    final endBlockIdx = max(0, (endOffset - 1) ~/ blockSize);
     final totalBlocks = endBlockIdx - startBlockIdx + 1;
 
     logger.trace(
@@ -129,16 +131,20 @@ class CacheOperation {
       final offsetInBlock = max(0, currentOffset - blockStartOffset);
       final bytesToRead = min(blockSize - offsetInBlock, remainingBytes);
 
-      // 提取需要的部分数据
-      final dataToYield = blockData.sublist(
-        offsetInBlock,
-        offsetInBlock + bytesToRead,
+      // 确保不会超出实际块数据的范围（防止文件末尾块的越界问题）
+      final actualBytesToRead = min(
+        bytesToRead,
+        blockData.length - offsetInBlock,
       );
+      final endIndex = offsetInBlock + actualBytesToRead;
+
+      // 提取需要的部分数据
+      final dataToYield = blockData.sublist(offsetInBlock, endIndex);
 
       yield dataToYield;
 
-      currentOffset += bytesToRead;
-      remainingBytes -= bytesToRead;
+      currentOffset += actualBytesToRead;
+      remainingBytes -= actualBytesToRead;
     }
 
     logger.trace('Completed block-cached read for ${path.toString()}');
@@ -249,6 +255,15 @@ class CacheOperation {
     // 获取文件大小以确保不会读取超出文件末尾的数据
     final fileStatus = await originFileSystem.stat(context, path);
     final fileSize = fileStatus?.size ?? 0;
+
+    // 如果块的起始位置已经超出文件大小，返回空数据
+    if (blockStart >= fileSize) {
+      logger.finest(
+        'Block $blockIdx starts beyond file size for ${path.toString()}: '
+        'blockStart=$blockStart, fileSize=$fileSize',
+      );
+      return Uint8List(0);
+    }
 
     // 计算实际的读取结束位置，不超过文件大小
     final blockEnd = min(blockStart + blockSize, fileSize);
