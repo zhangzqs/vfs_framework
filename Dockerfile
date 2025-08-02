@@ -12,10 +12,7 @@ RUN dart pub get --offline
 RUN dart compile exe bin/vfs_framework.dart -o bin/vfs_framework
 
 # 运行时镜像
-FROM scratch
-# COPY --from=build /runtime/ /
+FROM alpine:3.22.1
 COPY --from=build /app/bin/vfs_framework /app/bin/
-
-# Start server.
 EXPOSE 8080
 CMD ["/app/bin/vfs_framework"]
