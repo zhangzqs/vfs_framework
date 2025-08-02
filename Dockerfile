@@ -17,7 +17,7 @@ FROM alpine:3.22.1
 # 拷贝运行时库
 COPY --from=build /runtime/ /
 # 拷贝编译好的二进制文件
-COPY --from=build /app/vfs_framework /app/
+COPY --from=build /app/bin/vfs_framework /app/
 # 设置工作目录
 WORKDIR /app
 EXPOSE 8080
