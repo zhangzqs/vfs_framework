@@ -155,9 +155,13 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     _listOperations++;
 
     final entity = _getEntity(context, path);
-    if (entity == null || !entity.status.isDirectory) {
-      logger.warning('Directory not found or not a directory: $path');
+    if (entity == null) {
+      logger.warning('Directory not found: $path');
       throw FileSystemException.notFound(path);
+    }
+    if (!entity.status.isDirectory) {
+      logger.warning('Path is not a directory: $path');
+      throw FileSystemException.notADirectory(path);
     }
 
     final childCount = entity.children!.length;
@@ -219,8 +223,11 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
   }) async {
     // 简单实现：读取源文件内容，写入目标文件
     final sourceEntity = _getEntity(context, source);
-    if (sourceEntity == null || sourceEntity.status.isDirectory) {
+    if (sourceEntity == null) {
       throw FileSystemException.notFound(source);
+    }
+    if (sourceEntity.status.isDirectory) {
+      throw FileSystemException.recursiveNotSpecified(source);
     }
 
     final content = sourceEntity.content!;
@@ -251,6 +258,9 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     }
 
     if (sourceEntity.status.isDirectory) {
+      if (!options.recursive) {
+        throw FileSystemException.recursiveNotSpecified(source);
+      }
       // 创建目录
       await createDirectory(
         context,

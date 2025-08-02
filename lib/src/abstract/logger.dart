@@ -11,7 +11,7 @@ class Logger {
     Map<String, Object> metadata = const {},
   }) : _sink = sink,
        _metadata = Map.unmodifiable(metadata);
-  static const Level defaultLevel = Level.trace;
+  static const Level defaultLevel = Level.info;
   static Logger defaultLogger = Logger(
     LogRecordConsoleAdapter(),
     level: defaultLevel,
