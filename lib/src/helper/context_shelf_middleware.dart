@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:shelf/shelf.dart';
-import 'package:uuid/uuid.dart';
+import 'package:vfs_framework/src/helper/req_logger_shelf_middleware.dart';
 import '../abstract/index.dart';
 
 const _middlewareKey = 'vfs.context';
@@ -14,14 +14,14 @@ Context mustGetContextFromRequest(Request request) {
   return context;
 }
 
-Request withContext(Request request, Context context) {
+Request requestWithContext(Request request, Context context) {
   return request.change(context: {...request.context, _middlewareKey: context});
 }
 
 Middleware contextMiddleware(Logger logger) {
   return (Handler handler) {
     return (Request request) async {
-      final requestID = const Uuid().v8();
+      final requestID = mustGetRequestIDFromContext(request);
       final context = Context(
         logger: logger.withMetadata({'requestID': requestID}),
         operationID: requestID,
@@ -29,7 +29,7 @@ Middleware contextMiddleware(Logger logger) {
       logger = context.logger;
 
       // 将上下文添加到请求中
-      final newRequest = withContext(request, context);
+      final newRequest = requestWithContext(request, context);
 
       try {
         logger.trace('请求到来: ${newRequest.method} ${newRequest.url}');

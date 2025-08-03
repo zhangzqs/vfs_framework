@@ -108,14 +108,14 @@ class BenchmarkFileSystemStat extends AsyncBenchmarkBase {
   }
 }
 
-void testFileSystemStat(IFileSystem fileSystem) {
-  group('${fileSystem.runtimeType}.stat benchmark test', () {
+void testFileSystemStat<T extends IFileSystem>(T Function() fsGetter) {
+  group('$T.stat benchmark test', () {
     for (final exists in [true, false]) {
       for (final isDirectory in [true, false]) {
-        test('[${fileSystem.runtimeType}.stat '
+        test('[$T.stat '
             '${{'exists': exists, 'isDirectory': isDirectory}}]', () async {
           await BenchmarkFileSystemStat(
-            fileSystem: fileSystem,
+            fileSystem: fsGetter(),
             exists: exists,
             isDirectory: isDirectory,
           ).report();
@@ -128,7 +128,7 @@ void testFileSystemStat(IFileSystem fileSystem) {
 void main() async {
   group('test stat', () {
     group('MemoryFileSystem', skip: true, () {
-      testFileSystemStat(MemoryFileSystem());
+      testFileSystemStat(MemoryFileSystem.new);
     });
     group('WebDAVFileSystem', skip: true, () {
       final Dio dio = Dio(BaseOptions(baseUrl: 'http://localhost:8091'));
@@ -136,16 +136,37 @@ void main() async {
         const WebDAVBasicAuthInterceptor(username: 'admin', password: 'test'),
       );
       final fs = WebDAVFileSystem(dio);
-      testFileSystemStat(fs);
+      group('direct', () {
+        // 直接访问
+        testFileSystemStat(() => fs);
+      });
+      group('metadata cache', () {
+        // 添加元数据缓存
+        final cache = MetadataCacheFileSystem(
+          originFileSystem: fs,
+          cacheFileSystem: MemoryFileSystem(),
+          cacheDir: Path.fromString('webdav_cache'),
+        );
+        testFileSystemStat(() => cache);
+      });
     });
     group('AliasFileSystem', skip: true, () {
       IFileSystem fs;
       fs = MemoryFileSystem();
       fs = AliasFileSystem(fileSystem: fs);
-      testFileSystemStat(fs);
+      testFileSystemStat(() => fs);
     });
-    group('LocalFileSystem', () {
-      testFileSystemStat(LocalFileSystem(baseDir: Directory('./tmp')));
+    group('LocalFileSystem', skip: true, () {
+      late Directory baseDir;
+      setUp(() async {
+        baseDir = Directory.systemTemp.createTempSync('vfs_test');
+      });
+      tearDown(() async {
+        if (baseDir.existsSync()) {
+          await baseDir.delete(recursive: true);
+        }
+      });
+      testFileSystemStat(() => LocalFileSystem(baseDir: baseDir));
     });
   });
 }

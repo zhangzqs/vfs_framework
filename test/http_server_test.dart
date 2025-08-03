@@ -39,7 +39,7 @@ void main() {
     test('应该能列举根目录', () async {
       final request = Request('GET', Uri.parse('http://localhost:8080/'));
       final response = await httpServer.handleRequest(
-        withContext(request, context),
+        requestWithContext(request, context),
       );
 
       expect(response.statusCode, equals(200));
@@ -57,7 +57,7 @@ void main() {
         headers: {'accept': 'application/json'},
       );
       final response = await httpServer.handleRequest(
-        withContext(request, context),
+        requestWithContext(request, context),
       );
       expect(response.statusCode, equals(200));
       expect(response.headers['content-type'], contains('application/json'));
@@ -85,7 +85,7 @@ void main() {
         headers: {'accept': 'application/json'},
       );
       final response = await httpServer.handleRequest(
-        withContext(request, context),
+        requestWithContext(request, context),
       );
       expect(response.statusCode, equals(200));
 
@@ -103,7 +103,7 @@ void main() {
         Uri.parse('http://localhost:8080/documents/test.txt'),
       );
       final response = await httpServer.handleRequest(
-        withContext(request, context),
+        requestWithContext(request, context),
       );
       expect(response.statusCode, equals(200));
       expect(response.headers['content-type'], equals('text/plain'));
@@ -120,7 +120,7 @@ void main() {
         headers: {'range': 'bytes=0-4'},
       );
       final response = await httpServer.handleRequest(
-        withContext(request, context),
+        requestWithContext(request, context),
       );
       expect(response.statusCode, equals(206)); // Partial Content
       expect(response.headers['content-range'], equals('bytes 0-4/13'));
@@ -136,7 +136,7 @@ void main() {
         Uri.parse('http://localhost:8080/nonexistent.txt'),
       );
       final response = await httpServer.handleRequest(
-        withContext(request, context),
+        requestWithContext(request, context),
       );
       expect(response.statusCode, equals(404));
     });
@@ -150,7 +150,7 @@ void main() {
 
       // 首先手动触发GET请求到目录，但不允许列表
       final response = await httpServer.handleRequest(
-        withContext(request, context),
+        requestWithContext(request, context),
       );
       // 由于我们的实现会自动检测目录并返回列表，这个测试需要调整
       // 让我们测试一个不同的场景
@@ -160,7 +160,7 @@ void main() {
     test('应该正确处理根路径', () async {
       final request = Request('GET', Uri.parse('http://localhost:8080/'));
       final response = await httpServer.handleRequest(
-        withContext(request, context),
+        requestWithContext(request, context),
       );
       expect(response.statusCode, equals(200));
       expect(response.headers['content-type'], contains('text/html'));
@@ -173,7 +173,7 @@ void main() {
         headers: {'accept': 'application/json'},
       );
       final response = await httpServer.handleRequest(
-        withContext(request, context),
+        requestWithContext(request, context),
       );
       final body = await response.readAsString();
       final data = json.decode(body) as Map<String, dynamic>;
