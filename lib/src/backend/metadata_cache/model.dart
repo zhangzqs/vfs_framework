@@ -94,13 +94,13 @@ class MetadataCacheData extends Equatable {
   String get cacheStats {
     if (stat.isDirectory) {
       if (isLargeDirectory) {
-        return 'Large directory (no children cached)';
+        return '大目录（子文件未缓存）';
       } else {
         final childCount = children?.length ?? 0;
-        return 'Directory with $childCount children cached';
+        return '目录，已缓存 $childCount 个子文件';
       }
     } else {
-      return 'File metadata cached';
+      return '文件元数据已缓存';
     }
   }
 

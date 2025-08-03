@@ -33,7 +33,14 @@ class MetadataCacheOperation {
 
     // 使用SHA-256的前16位作为hash值，大大降低冲突概率
     final hash = digest.toString().substring(0, 16);
-    logger.trace('Generated hash for ${path.toString()}: $hash');
+    logger.trace(
+      '为路径生成哈希值',
+      metadata: {
+        'path': pathString,
+        'hash': hash,
+        'operation': 'generate_path_hash',
+      },
+    );
     return hash;
   }
 
@@ -51,8 +58,16 @@ class MetadataCacheOperation {
     final hierarchicalPath = cacheDir.join(level1).join(level2).join(level3);
 
     logger.trace(
-      'Built hierarchical cache path for hash $hash: '
-      '${hierarchicalPath.toString()}',
+      '构建分层缓存路径',
+      metadata: {
+        'path': path.toString(),
+        'hash': hash,
+        'cache_path': hierarchicalPath.toString(),
+        'level1': level1,
+        'level2': level2,
+        'level3': level3,
+        'operation': 'build_cache_path',
+      },
     );
     return hierarchicalPath;
   }
@@ -67,7 +82,14 @@ class MetadataCacheOperation {
       final cacheFilePath = _buildCacheMetadataFile(context, path);
 
       if (!await cacheFileSystem.exists(context, cacheFilePath)) {
-        logger.trace('Cache miss: ${cacheFilePath.toString()}');
+        logger.trace(
+          '缓存未命中',
+          metadata: {
+            'path': path.toString(),
+            'cache_path': cacheFilePath.toString(),
+            'operation': 'cache_miss',
+          },
+        );
         return null;
       }
 
@@ -82,19 +104,37 @@ class MetadataCacheOperation {
         expectedPath: path.toString(),
         maxAge: maxCacheAge,
       )) {
-        logger.trace('Cache expired for ${path.toString()}');
+        logger.trace(
+          '缓存已过期',
+          metadata: {
+            'path': path.toString(),
+            'cache_path': cacheFilePath.toString(),
+            'last_updated': cacheData.lastUpdated.toIso8601String(),
+            'max_age_minutes': maxCacheAge.inMinutes,
+            'operation': 'cache_expired',
+          },
+        );
         // 异步删除过期缓存
         unawaited(_invalidateCache(context, path));
         return null;
       }
 
-      logger.trace('Cache hit for ${path.toString()}: ${cacheData.cacheStats}');
+      logger.trace(
+        '缓存命中',
+        metadata: {
+          'path': path.toString(),
+          'cache_stats': cacheData.cacheStats,
+          'last_updated': cacheData.lastUpdated.toIso8601String(),
+          'operation': 'cache_hit',
+        },
+      );
       return cacheData;
     } catch (e, stackTrace) {
       logger.warning(
-        'Failed to read cache for ${path.toString()}: $e',
+        '缓存读取失败',
         error: e,
         stackTrace: stackTrace,
+        metadata: {'path': path.toString(), 'operation': 'read_cache_failed'},
       );
       return null; // 缓存读取失败
     }
@@ -131,13 +171,20 @@ class MetadataCacheOperation {
       );
 
       logger.trace(
-        'Cache written for ${path.toString()}: ${metadata.cacheStats}',
+        '缓存写入成功',
+        metadata: {
+          'path': path.toString(),
+          'cache_path': cacheFilePath.toString(),
+          'cache_stats': metadata.cacheStats,
+          'operation': 'cache_write_success',
+        },
       );
     } catch (e, stackTrace) {
       logger.warning(
-        'Failed to write cache for ${path.toString()}: $e',
+        '缓存写入失败',
         error: e,
         stackTrace: stackTrace,
+        metadata: {'path': path.toString(), 'operation': 'cache_write_failed'},
       );
       // 静默处理缓存写入错误
     }
@@ -150,13 +197,24 @@ class MetadataCacheOperation {
       final cacheFilePath = _buildCacheMetadataFile(context, path);
       if (await cacheFileSystem.exists(context, cacheFilePath)) {
         await cacheFileSystem.delete(context, cacheFilePath);
-        logger.trace('Cache invalidated for ${path.toString()}');
+        logger.trace(
+          '缓存失效成功',
+          metadata: {
+            'path': path.toString(),
+            'cache_path': cacheFilePath.toString(),
+            'operation': 'cache_invalidated',
+          },
+        );
       }
     } catch (e, stackTrace) {
       logger.warning(
-        'Failed to invalidate cache for ${path.toString()}: $e',
+        '缓存失效失败',
         error: e,
         stackTrace: stackTrace,
+        metadata: {
+          'path': path.toString(),
+          'operation': 'cache_invalidate_failed',
+        },
       );
       // 静默处理缓存删除错误
     }
@@ -195,8 +253,13 @@ class MetadataCacheOperation {
             // 如果子文件数量超过阈值，标记为大目录
             if (childCount > largeDirectoryThreshold) {
               logger.debug(
-                'Directory ${path.toString()} has $childCount children, '
-                'marking as large directory',
+                '目录子文件数量超过阈值，标记为大目录',
+                metadata: {
+                  'path': path.toString(),
+                  'child_count': childCount,
+                  'threshold': largeDirectoryThreshold,
+                  'operation': 'mark_large_directory',
+                },
               );
               cacheData = cacheData.markAsLargeDirectory();
               break;
@@ -208,9 +271,13 @@ class MetadataCacheOperation {
           }
         } catch (e, stackTrace) {
           logger.warning(
-            'Failed to list directory ${path.toString()}: $e',
+            '目录列举失败',
             error: e,
             stackTrace: stackTrace,
+            metadata: {
+              'path': path.toString(),
+              'operation': 'list_directory_failed',
+            },
           );
           // 列举失败时不缓存子文件列表
         }
@@ -220,9 +287,13 @@ class MetadataCacheOperation {
       return cacheData;
     } catch (e, stackTrace) {
       logger.warning(
-        'Failed to refresh cache for ${path.toString()}: $e',
+        '缓存刷新失败',
         error: e,
         stackTrace: stackTrace,
+        metadata: {
+          'path': path.toString(),
+          'operation': 'refresh_cache_failed',
+        },
       );
       // 刷新失败时删除缓存
       await _invalidateCache(context, path);
@@ -251,9 +322,13 @@ class MetadataCacheOperation {
       return status;
     } catch (e, stackTrace) {
       logger.warning(
-        'Failed to get file status for ${path.toString()}: $e',
+        '获取文件状态失败',
         error: e,
         stackTrace: stackTrace,
+        metadata: {
+          'path': path.toString(),
+          'operation': 'get_file_status_failed',
+        },
       );
       // 出错时回退到原始文件系统
       return originFileSystem.stat(context, path);
@@ -271,8 +346,13 @@ class MetadataCacheOperation {
         final children = cachedData.children;
         if (children != null) {
           logger.trace(
-            'Serving directory listing from cache for ${path.toString()}: '
-            '${children.length} items',
+            '从缓存提供目录列表',
+            metadata: {
+              'path': path.toString(),
+              'child_count': children.length,
+              'cache_stats': cachedData.cacheStats,
+              'operation': 'serve_from_cache',
+            },
           );
           for (final child in children) {
             yield child;
@@ -283,7 +363,14 @@ class MetadataCacheOperation {
 
       // 缓存不存在、无效或是大目录，从原始文件系统获取
       logger.trace(
-        'Serving directory listing from origin for ${path.toString()}',
+        '从原始文件系统提供目录列表',
+        metadata: {
+          'path': path.toString(),
+          'reason': cachedData?.isLargeDirectory == true
+              ? 'large_directory'
+              : 'cache_miss',
+          'operation': 'serve_from_origin',
+        },
       );
       await for (final item in originFileSystem.list(context, path)) {
         yield item;
@@ -293,9 +380,13 @@ class MetadataCacheOperation {
       unawaited(_refreshMetadataCache(context, path));
     } catch (e, stackTrace) {
       logger.warning(
-        'Failed to list directory ${path.toString()}: $e',
+        '目录列表获取失败',
         error: e,
         stackTrace: stackTrace,
+        metadata: {
+          'path': path.toString(),
+          'operation': 'list_directory_failed',
+        },
       );
       // 出错时回退到原始文件系统
       await for (final item in originFileSystem.list(context, path)) {
