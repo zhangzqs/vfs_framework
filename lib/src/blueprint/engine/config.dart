@@ -20,4 +20,9 @@ class ComponentConfig {
   Map<String, dynamic> toJson() {
     return {'name': name, 'type': type, 'config': config};
   }
+
+  @override
+  String toString() {
+    return toJson().toString();
+  }
 }

@@ -22,8 +22,8 @@ note top of webdav_fs
   --
   **Config**:
   • baseUrl: http://192.168.242.2:8093
-  • username: admin
-  • password: test
+  • username: zzq
+  • password: [REDACTED]
   • httpOptions: {3 keys}
 end note
 
@@ -70,14 +70,47 @@ note top of http_server
   • port: 8051
 end note
 
+component [request_logger] as request_logger
+note top of request_logger
+  **Type**: logger.logger
+  --
+  **Config**:
+  • level: info
+  • format: json
+  • codeFilenameEnabled: false
+  • localLogFile: {3 keys}
+end note
+
+component [app_logger] as app_logger
+note top of app_logger
+  **Type**: logger.logger
+  --
+  **Config**:
+  • level: debug
+  • format: json
+  • localLogFile: {3 keys}
+end note
+
 component [webdav_server] as webdav_server
 note top of webdav_server
   **Type**: frontend.webdav
   --
   **Config**:
   • backend: union_fs
+  • logger: app_logger
+  • requestLogger: request_logger
   • address: 0.0.0.0
   • port: 8052
+end note
+
+component [component_diagram] as component_diagram
+note top of component_diagram
+  **Type**: builtin.component_diagram_exporter
+  --
+  **Config**:
+  • logger: app_logger
+  • outputSVGFile: component_diagram.svg
+  • outputPUMLFile: component_diagram.puml
 end note
 
 ' Dependencies
@@ -91,5 +124,8 @@ block_cache_fs --> union_fs : uses
 webdav_fs --> union_fs : uses
 union_fs --> http_server : uses
 union_fs --> webdav_server : uses
+app_logger --> webdav_server : uses
+request_logger --> webdav_server : uses
+app_logger --> component_diagram : uses
 
 @enduml

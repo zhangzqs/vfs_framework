@@ -1,8 +1,9 @@
-import 'package:vfs_framework/src/blueprint/provider/frontend/webdav.dart';
-
 import '../engine/index.dart';
 import 'backend/index.dart';
+import 'compdiagram/index.dart';
 import 'frontend/index.dart';
+import 'frontend/webdav.dart';
+import 'logger/logger.dart';
 
 final defaultProviders = <ComponentProvider>[
   MemoryFileSystemProvider(),
@@ -14,4 +15,6 @@ final defaultProviders = <ComponentProvider>[
   MetadataCacheFileSystemProvider(),
   WebDAVFileSystemProvider(),
   WebDAVServerProvider(),
+  LoggerProvider(),
+  ComponentDiagramProvider(),
 ];

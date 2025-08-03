@@ -37,7 +37,7 @@ class CacheOperation {
 
     // 使用SHA-256的前16位作为hash值，大大降低冲突概率
     final hash = digest.toString().substring(0, 16);
-    logger.trace('Generated hash for ${path.toString()}: $hash');
+    logger.trace('生成路径哈希值', metadata: {'path': pathString, 'hash': hash});
     return hash;
   }
 
@@ -55,8 +55,15 @@ class CacheOperation {
     final hierarchicalPath = cacheDir.join(level1).join(level2).join(level3);
 
     logger.trace(
-      'Built hierarchical cache path for hash $hash: '
-      '${hierarchicalPath.toString()}',
+      '构建分层缓存路径',
+      metadata: {
+        'hash': hash,
+        'level1': level1,
+        'level2': level2,
+        'level3': level3,
+        'cache_path': hierarchicalPath.toString(),
+        'original_path': path.toString(),
+      },
     );
     return hierarchicalPath;
   }
@@ -69,7 +76,13 @@ class CacheOperation {
   ) async* {
     final logger = context.logger;
 
-    logger.trace('Starting block-cached read for ${path.toString()}');
+    logger.trace(
+      '开始块缓存读取',
+      metadata: {
+        'path': path.toString(),
+        'read_options': {'start': options.start, 'end': options.end},
+      },
+    );
 
     // 获取文件状态信息
     final fileStatus = await originFileSystem.stat(context, path);
@@ -81,7 +94,10 @@ class CacheOperation {
     }
     final fileSize = fileStatus.size ?? 0;
     if (fileSize == 0) {
-      logger.trace('File is empty: ${path.toString()}');
+      logger.trace(
+        '文件为空，直接返回',
+        metadata: {'path': path.toString(), 'file_size': fileSize},
+      );
       return; // 空文件直接返回
     }
     // 计算读取范围
@@ -91,8 +107,13 @@ class CacheOperation {
 
     if (readLength <= 0) {
       logger.warning(
-        'Invalid read range for ${path.toString()}: '
-        'start=$startOffset, end=$endOffset',
+        '无效的读取范围',
+        metadata: {
+          'path': path.toString(),
+          'start_offset': startOffset,
+          'end_offset': endOffset,
+          'read_length': readLength,
+        },
       );
       return; // 无效的读取范围
     }
@@ -104,8 +125,15 @@ class CacheOperation {
     final totalBlocks = endBlockIdx - startBlockIdx + 1;
 
     logger.trace(
-      'Reading ${path.toString()}: blocks $startBlockIdx-$endBlockIdx '
-      '($totalBlocks blocks)',
+      '计算读取块范围',
+      metadata: {
+        'path': path.toString(),
+        'start_block': startBlockIdx,
+        'end_block': endBlockIdx,
+        'total_blocks': totalBlocks,
+        'file_size': fileSize,
+        'block_size': blockSize,
+      },
     );
 
     // 生成文件路径的hash
@@ -147,7 +175,14 @@ class CacheOperation {
       remainingBytes -= actualBytesToRead;
     }
 
-    logger.trace('Completed block-cached read for ${path.toString()}');
+    logger.trace(
+      '完成块缓存读取',
+      metadata: {
+        'path': path.toString(),
+        'total_blocks_read': totalBlocks,
+        'total_bytes_read': readLength - remainingBytes,
+      },
+    );
   }
 
   /// 获取指定块的数据（带缓存和预读）
@@ -180,7 +215,12 @@ class CacheOperation {
           );
           if (cachedData != null) {
             logger.trace(
-              'Cache hit for ${originalPath.toString()}, block $blockIdx',
+              '缓存命中',
+              metadata: {
+                'path': originalPath.toString(),
+                'block_index': blockIdx,
+                'block_size': cachedData.length,
+              },
             );
 
             // 触发预读
@@ -190,8 +230,11 @@ class CacheOperation {
           }
         } else {
           logger.warning(
-            'Cache integrity check failed for ${originalPath.toString()}, '
-            'possible hash collision detected, invalidating cache',
+            '缓存完整性检查失败，可能存在哈希冲突，使缓存失效',
+            metadata: {
+              'path': originalPath.toString(),
+              'block_index': blockIdx,
+            },
           );
           await invalidateCache(context, originalPath);
         }
@@ -199,8 +242,8 @@ class CacheOperation {
 
       // 缓存不存在或验证失败，从原始文件系统读取
       logger.trace(
-        'Cache miss for ${originalPath.toString()}, block $blockIdx, '
-        'reading from origin',
+        '缓存未命中，从原始文件系统读取',
+        metadata: {'path': originalPath.toString(), 'block_index': blockIdx},
       );
       final blockData = await _readBlockFromOrigin(
         context,
@@ -226,7 +269,9 @@ class CacheOperation {
       return blockData;
     } catch (e) {
       logger.warning(
-        'Error reading block cache for ${originalPath.toString()}: $e',
+        '读取块缓存时发生错误，回退到原始文件系统',
+        error: e,
+        metadata: {'path': originalPath.toString(), 'block_index': blockIdx},
       );
       // 缓存读取失败，回退到原始文件系统
       final blockData = await _readBlockFromOrigin(
@@ -259,8 +304,13 @@ class CacheOperation {
     // 如果块的起始位置已经超出文件大小，返回空数据
     if (blockStart >= fileSize) {
       logger.trace(
-        'Block $blockIdx starts beyond file size for ${path.toString()}: '
-        'blockStart=$blockStart, fileSize=$fileSize',
+        '块起始位置超出文件大小',
+        metadata: {
+          'path': path.toString(),
+          'block_index': blockIdx,
+          'block_start': blockStart,
+          'file_size': fileSize,
+        },
       );
       return Uint8List(0);
     }
@@ -271,8 +321,14 @@ class CacheOperation {
     final readOptions = ReadOptions(start: blockStart, end: blockEnd);
 
     logger.trace(
-      'Reading block $blockIdx from origin for ${path.toString()}: '
-      'range $blockStart-$blockEnd (fileSize: $fileSize)',
+      '从原始文件系统读取块',
+      metadata: {
+        'path': path.toString(),
+        'block_index': blockIdx,
+        'block_start': blockStart,
+        'block_end': blockEnd,
+        'file_size': fileSize,
+      },
     );
     return originFileSystem.readAsBytes(context, path, options: readOptions);
   }
@@ -288,7 +344,11 @@ class CacheOperation {
     try {
       return await filesystem.readAsBytes(context, path);
     } catch (e) {
-      logger.warning('Failed to read cached block ${path.toString()}: $e');
+      logger.warning(
+        '读取缓存块失败',
+        error: e,
+        metadata: {'cache_path': path.toString()},
+      );
       return null; // 读取失败返回null
     }
   }
@@ -345,13 +405,18 @@ class CacheOperation {
         );
 
         logger.trace(
-          'Cache written successfully for ${originalPath.toString()}, '
-          'block $blockIdx',
+          '缓存写入成功',
+          metadata: {
+            'path': originalPath.toString(),
+            'block_index': blockIdx,
+            'data_size': data.length,
+          },
         );
       } catch (e) {
         logger.warning(
-          'Failed to write cache for ${originalPath.toString()}, '
-          'block $blockIdx: $e',
+          '缓存写入失败',
+          error: e,
+          metadata: {'path': originalPath.toString(), 'block_index': blockIdx},
         );
         // 静默处理缓存写入错误，不影响主流程
       }
@@ -370,7 +435,11 @@ class CacheOperation {
       final metadata = await _readCacheMetadata(context, metaPath);
       if (metadata == null) {
         logger.trace(
-          'No metadata file found for cache validation: ${metaPath.toString()}',
+          '未找到缓存元数据文件',
+          metadata: {
+            'meta_path': metaPath.toString(),
+            'original_path': originalPath.toString(),
+          },
         );
         return false;
       }
@@ -379,7 +448,8 @@ class CacheOperation {
       final originalStat = await originFileSystem.stat(context, originalPath);
       if (originalStat == null) {
         logger.warning(
-          'Original file does not exist: ${originalPath.toString()}',
+          '原文件不存在',
+          metadata: {'original_path': originalPath.toString()},
         );
         return false; // 原文件不存在
       }
@@ -393,19 +463,27 @@ class CacheOperation {
 
       if (!isValid) {
         logger.warning(
-          'Cache metadata validation failed for: ${originalPath.toString()}, '
-          'metadata: $metadata',
+          '缓存元数据验证失败',
+          metadata: {
+            'path': originalPath.toString(),
+            'cache_metadata': metadata.toJson(),
+            'expected_file_size': originalStat.size ?? 0,
+            'expected_block_size': blockSize,
+          },
         );
         return false;
       }
 
       logger.trace(
-        'Cache validation passed for ${originalPath.toString()}, '
-        'stats: ${metadata.cacheStats}',
+        '缓存验证通过',
+        metadata: {
+          'path': originalPath.toString(),
+          'cache_stats': metadata.cacheStats,
+        },
       );
       return true;
     } catch (e) {
-      logger.warning('Cache integrity validation failed: $e');
+      logger.warning('缓存完整性验证失败', error: e);
       return false;
     }
   }
@@ -432,7 +510,9 @@ class CacheOperation {
       return CacheMetadata.fromJson(metaJson);
     } catch (e) {
       logger.warning(
-        'Failed to read cache metadata from ${metaPath.toString()}: $e',
+        '读取缓存元数据失败',
+        error: e,
+        metadata: {'meta_path': metaPath.toString()},
       );
       return null;
     }
@@ -452,8 +532,8 @@ class CacheOperation {
       final originalStat = await originFileSystem.stat(context, originalPath);
       if (originalStat == null) {
         logger.warning(
-          'Cannot get original file stat for metadata: '
-          '${originalPath.toString()}',
+          '无法获取原文件状态信息用于元数据更新',
+          metadata: {'original_path': originalPath.toString()},
         );
         return;
       }
@@ -493,11 +573,17 @@ class CacheOperation {
       await sink.close();
 
       logger.trace(
-        'Cache metadata updated for ${originalPath.toString()}, '
-        'block $blockIdx, stats: ${metadata.cacheStats}',
+        '缓存元数据更新成功',
+        metadata: {
+          'path': originalPath.toString(),
+          'block_index': blockIdx,
+          'cache_stats': metadata.cacheStats,
+          'total_blocks': totalBlocks,
+          'file_size': fileSize,
+        },
       );
     } catch (e) {
-      logger.warning('Failed to update cache metadata: $e');
+      logger.warning('更新缓存元数据失败', error: e);
       // 元数据更新失败不影响缓存数据本身
     }
   }
@@ -510,8 +596,11 @@ class CacheOperation {
       final cacheHashDir = _buildCacheHashDir(context, path);
 
       logger.debug(
-        'Invalidating cache for path: ${path.toString()}, '
-        'cache dir: ${cacheHashDir.toString()}',
+        '使缓存失效',
+        metadata: {
+          'path': path.toString(),
+          'cache_dir': cacheHashDir.toString(),
+        },
       );
 
       // 清理预读状态
@@ -525,15 +614,15 @@ class CacheOperation {
           cacheHashDir,
           options: const DeleteOptions(recursive: true),
         );
-        logger.debug('Cache invalidated successfully for: ${path.toString()}');
+        logger.debug('缓存失效成功', metadata: {'path': path.toString()});
 
         // 尝试清理空的父级目录
         await _cleanupEmptyParentDirs(context, cacheHashDir);
       } else {
-        logger.trace('No cache found to invalidate for: ${path.toString()}');
+        logger.trace('未找到需要失效的缓存', metadata: {'path': path.toString()});
       }
     } catch (e) {
-      logger.warning('Failed to invalidate cache for ${path.toString()}: $e');
+      logger.warning('缓存失效失败', error: e, metadata: {'path': path.toString()});
       // 静默处理缓存清理错误，不影响主流程
     }
   }
@@ -560,7 +649,10 @@ class CacheOperation {
 
         if (level2Items.isEmpty) {
           await cacheFileSystem.delete(context, level2Dir);
-          logger.trace('Cleaned up empty level2 dir: ${level2Dir.toString()}');
+          logger.trace(
+            '清理空的二级目录',
+            metadata: {'level2_dir': level2Dir.toString()},
+          );
 
           // 检查level1目录是否也为空
           if (level1Dir != null &&
@@ -573,7 +665,8 @@ class CacheOperation {
             if (level1Items.isEmpty) {
               await cacheFileSystem.delete(context, level1Dir);
               logger.trace(
-                'Cleaned up empty level1 dir: ${level1Dir.toString()}',
+                '清理空的一级目录',
+                metadata: {'level1_dir': level1Dir.toString()},
               );
             }
           }
@@ -581,7 +674,7 @@ class CacheOperation {
       }
     } catch (e) {
       // 静默处理清理错误，不影响主要功能
-      logger.trace('Failed to cleanup empty parent dirs: $e');
+      logger.trace('清理空的父级目录失败', error: e);
     }
   }
 
@@ -611,8 +704,12 @@ class CacheOperation {
 
     if (!isSequentialAccess) {
       logger.trace(
-        'Non-sequential access detected for ${originalPath.toString()}: '
-        'last=$lastBlock, current=$currentBlockIdx, skipping read-ahead',
+        '检测到非顺序访问，跳过预读',
+        metadata: {
+          'path': originalPath.toString(),
+          'last_block': lastBlock,
+          'current_block': currentBlockIdx,
+        },
       );
       return;
     }
@@ -691,19 +788,33 @@ class CacheOperation {
         // 等待所有预读任务完成（但不阻塞主流程）
         if (readAheadTasks.isNotEmpty) {
           logger.trace(
-            'Starting read-ahead for ${originalPath.toString()}: '
-            '${readAheadTasks.length} blocks after block $currentBlockIdx',
+            '开始预读任务',
+            metadata: {
+              'path': originalPath.toString(),
+              'task_count': readAheadTasks.length,
+              'after_block': currentBlockIdx,
+            },
           );
 
           await Future.wait(readAheadTasks);
 
           logger.trace(
-            'Completed read-ahead for ${originalPath.toString()}: '
-            '${readAheadTasks.length} blocks',
+            '预读任务完成',
+            metadata: {
+              'path': originalPath.toString(),
+              'completed_tasks': readAheadTasks.length,
+            },
           );
         }
       } catch (e) {
-        logger.warning('Read-ahead failed for ${originalPath.toString()}: $e');
+        logger.warning(
+          '预读失败',
+          error: e,
+          metadata: {
+            'path': originalPath.toString(),
+            'current_block': currentBlockIdx,
+          },
+        );
       }
     });
   }
@@ -724,7 +835,8 @@ class CacheOperation {
 
     try {
       logger.trace(
-        'Read-ahead: fetching block $blockIdx for ${originalPath.toString()}',
+        '预读：开始获取块',
+        metadata: {'path': originalPath.toString(), 'block_index': blockIdx},
       );
 
       // 从原始文件系统读取块数据
@@ -770,13 +882,18 @@ class CacheOperation {
       );
 
       logger.trace(
-        'Read-ahead: successfully cached block $blockIdx '
-        'for ${originalPath.toString()}',
+        '预读：成功缓存块',
+        metadata: {
+          'path': originalPath.toString(),
+          'block_index': blockIdx,
+          'data_size': blockData.length,
+        },
       );
     } catch (e) {
       logger.warning(
-        'Read-ahead: failed to cache block $blockIdx '
-        'for ${originalPath.toString()}: $e',
+        '预读：缓存块失败',
+        error: e,
+        metadata: {'path': originalPath.toString(), 'block_index': blockIdx},
       );
     } finally {
       // 从活跃任务集合中移除
@@ -796,6 +913,6 @@ class CacheOperation {
     _activeReadAheadTasks.remove(pathString);
     _lastAccessedBlock.remove(pathString);
 
-    logger.trace('Cleaned up read-ahead state for ${originalPath.toString()}');
+    logger.trace('清理预读状态', metadata: {'path': originalPath.toString()});
   }
 }

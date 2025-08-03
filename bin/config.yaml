@@ -7,8 +7,8 @@
   type: backend.webdav
   config:
     baseUrl: "http://192.168.242.2:8093"
-    username: "admin"
-    password: "test"
+    username: "zzq"
+    password: "********" # Use a secure method to store passwords
     httpOptions:
       connectTimeout: 60s
       receiveTimeout: 60s
@@ -53,9 +53,39 @@
     address: localhost
     port: 8051
 
+- name: request_logger
+  type: logger.logger
+  config:
+    level: info
+    format: json
+    codeFilenameEnabled: false
+    localLogFile:
+      logDir: "./req_logs"
+      maxFileSize: 536870912 # 512MB
+      maxFileCount: 5 # Keep 5 log files
+
+- name: app_logger
+  type: logger.logger
+  config:
+    level: debug
+    format: json
+    localLogFile:
+      logDir: "./app_logs"
+      maxFileSize: 1073741824 # 1GB
+      maxFileCount: 5 # Keep 10 log files
+
 - name: webdav_server
   type: frontend.webdav
   config:
     backend: union_fs
+    logger: app_logger
+    requestLogger: request_logger
     address: 0.0.0.0
     port: 8052
+
+- name: component_diagram
+  type: builtin.component_diagram_exporter
+  config:
+    logger: app_logger
+    outputSVGFile: "component_diagram.svg"
+    outputPUMLFile: "component_diagram.puml"

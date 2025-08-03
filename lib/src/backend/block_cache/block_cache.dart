@@ -39,9 +39,9 @@ class _CacheInvalidatingSink implements StreamSink<List<int>> {
       await originalSink.close();
       // 然后执行缓存失效回调
       await onClose();
-      logger.trace('Write stream closed and cache invalidated');
+      logger.trace('写入流关闭，缓存已失效');
     } catch (e) {
-      logger.warning('Error during stream close: $e');
+      logger.warning('关闭流时发生错误', error: e);
       rethrow;
     }
   }
@@ -80,7 +80,14 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
     CopyOptions options = const CopyOptions(),
   }) async {
     final logger = context.logger;
-    logger.debug('Copying ${source.toString()} to ${destination.toString()}');
+    logger.debug(
+      '拷贝文件',
+      metadata: {
+        'source': source.toString(),
+        'destination': destination.toString(),
+        'options': options.toString(),
+      },
+    );
     await originFileSystem.copy(context, source, destination, options: options);
     // 目标文件的缓存可能需要失效
     await _cacheOperation.invalidateCache(context, destination);
@@ -102,7 +109,10 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
     DeleteOptions options = const DeleteOptions(),
   }) async {
     final logger = context.logger;
-    logger.debug('Deleting ${path.toString()}');
+    logger.debug(
+      '删除文件或目录',
+      metadata: {'path': path.toString(), 'options': options.toString()},
+    );
     await originFileSystem.delete(context, path, options: options);
     // 删除文件后使其缓存失效
     await _cacheOperation.invalidateCache(context, path);
@@ -134,7 +144,14 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
     MoveOptions options = const MoveOptions(),
   }) async {
     final logger = context.logger;
-    logger.debug('Moving ${source.toString()} to ${destination.toString()}');
+    logger.debug(
+      '移动文件',
+      metadata: {
+        'source': source.toString(),
+        'destination': destination.toString(),
+        'options': options.toString(),
+      },
+    );
     await originFileSystem.move(context, source, destination, options: options);
     // 移动操作会影响源文件和目标文件的缓存
     await _cacheOperation.invalidateCache(context, source);
@@ -157,7 +174,7 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
     WriteOptions options = const WriteOptions(),
   }) async {
     final logger = context.logger;
-    logger.debug('Opening write stream for ${path.toString()}');
+    logger.debug('打开写入流', metadata: {'path': path.toString()});
     final originalSink = await originFileSystem.openWrite(
       context,
       path,
@@ -179,7 +196,10 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
     ReadOptions options = const ReadOptions(),
   }) {
     final logger = context.logger;
-    logger.debug('Opening read stream for ${path.toString()} with block cache');
+    logger.debug(
+      '打开读取流',
+      metadata: {'path': path.toString(), 'options': options.toString()},
+    );
     return _cacheOperation.openReadWithBlockCache(context, path, options);
   }
 }

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import '../abstract/index.dart';
 import '../helper/filesystem_helper.dart';
 import '../helper/mime_type_helper.dart';
+import '../logger/index.dart';
 
 class _MemoryFileEntity {
   _MemoryFileEntity(this.status, {this.children});

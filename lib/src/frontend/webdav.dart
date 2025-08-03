@@ -9,6 +9,7 @@ import 'package:vfs_framework/vfs_framework.dart';
 
 import '../helper/req_logger_shelf_middleware.dart';
 import '../helper/webdav_auth_middleware.dart';
+import '../logger/index.dart';
 
 /// CORS中间件
 Middleware _corsMiddleware(Iterable<String> methods) => (Handler innerHandler) {
@@ -37,7 +38,9 @@ class WebDAVServer {
     this.port = 8080,
     this.authConfig = WebDAVAuthConfig.none,
     Logger? logger,
-  }) : logger = logger ?? Logger.defaultLogger;
+    Logger? requestLogger,
+  }) : logger = logger ?? Logger.defaultLogger,
+       requestLogger = requestLogger ?? Logger.defaultLogger;
 
   final IFileSystem fs;
   io.HttpServer? _server;
@@ -45,11 +48,12 @@ class WebDAVServer {
   final int port;
   final WebDAVAuthConfig authConfig;
   final Logger logger;
+  final Logger requestLogger;
 
   /// 启动WebDAV服务器
   Future<io.HttpServer> start() async {
     final handler = const Pipeline()
-        .addMiddleware(requestLoggerMiddleware(logger: logger))
+        .addMiddleware(requestLoggerMiddleware(logger: requestLogger))
         .addMiddleware(contextMiddleware(logger))
         .addMiddleware(_corsMiddleware(_routerHandler.keys))
         .addMiddleware(webdavAuthMiddleware(authConfig))

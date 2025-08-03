@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:shelf/shelf.dart';
 import 'package:vfs_framework/src/helper/req_logger_shelf_middleware.dart';
 import '../abstract/index.dart';
+import '../logger/index.dart';
 
 const _middlewareKey = 'vfs.context';
 

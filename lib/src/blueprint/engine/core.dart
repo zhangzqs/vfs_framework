@@ -118,6 +118,18 @@ class BlueprintEngine {
     throw BlueprintException('Component $name not found');
   }
 
+  ComponentEntry<Object> mustGetComponentEntryByName(String name) {
+    final entry = _components[name];
+    if (entry == null) {
+      throw BlueprintException('Component $name not found');
+    }
+    return entry;
+  }
+
+  List<String> getComponentNames() {
+    return List.unmodifiable(_components.keys);
+  }
+
   /// 获取组件依赖图
   Map<String, Set<String>> getDependencies() {
     return Map.unmodifiable(

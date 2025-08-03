@@ -6,7 +6,7 @@ import 'dart:math';
 import 'package:shelf/shelf.dart';
 import 'package:uuid/uuid.dart';
 
-import '../abstract/logger.dart';
+import '../logger/index.dart';
 
 /// 请求日志中间件配置
 class RequestLoggerConfig {

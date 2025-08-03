@@ -5,6 +5,8 @@ import 'package:shelf/shelf_io.dart';
 import 'package:vfs_framework/src/abstract/index.dart';
 import 'package:vfs_framework/src/helper/context_shelf_middleware.dart';
 
+import '../logger/index.dart';
+
 class HttpServer {
   HttpServer(
     this.fs, {

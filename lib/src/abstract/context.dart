@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:uuid/uuid.dart';
 
+import '../logger/index.dart';
 import 'errors.dart';
-import 'logger.dart';
 
 class Context {
   Context({Logger? logger, String? operationID})
