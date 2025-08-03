@@ -18,7 +18,13 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
     final logger = context.logger;
     final localPath = p.join(baseDir.path, p.joinAll(path.segments));
     logger.trace(
-      'Converting abstract path ${path.toString()} to local path: $localPath',
+      '转换抽象路径为本地路径',
+      metadata: {
+        'abstract_path': path.toString(),
+        'local_path': localPath,
+        'base_dir': baseDir.path,
+        'operation': 'convert_to_local_path',
+      },
     );
     return localPath;
   }
@@ -26,19 +32,40 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
   // 将本地路径转换为抽象Path
   Path _toPath(Context context, String localPath) {
     final logger = context.logger;
-    logger.trace('Converting local path $localPath to abstract path');
+    logger.trace(
+      '转换本地路径为抽象路径',
+      metadata: {
+        'local_path': localPath,
+        'operation': 'convert_to_abstract_path',
+      },
+    );
     // 计算相对于baseDir的相对路径
     String relative = p.relative(localPath, from: baseDir.path);
 
     // 处理特殊情况：根目录
     if (relative == '.') {
-      logger.trace('Local path is root directory, returning empty path');
+      logger.trace(
+        '本地路径为根目录，返回空路径',
+        metadata: {
+          'local_path': localPath,
+          'result': 'root_directory',
+          'operation': 'convert_root_directory',
+        },
+      );
       return Path([]);
     }
 
     // 使用path包分割路径
     final abstractPath = Path(p.split(relative));
-    logger.trace('Converted to abstract path: ${abstractPath.toString()}');
+    logger.trace(
+      '转换完成',
+      metadata: {
+        'local_path': localPath,
+        'abstract_path': abstractPath.toString(),
+        'relative_path': relative,
+        'operation': 'convert_to_abstract_path_completed',
+      },
+    );
     return abstractPath;
   }
 
@@ -49,16 +76,29 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
     StatOptions options = const StatOptions(),
   }) async {
     final logger = context.logger;
-    logger.debug('Getting file status for path: ${path.toString()}');
+    logger.debug(
+      '获取文件状态',
+      metadata: {'path': path.toString(), 'operation': 'get_file_status'},
+    );
     try {
       final localPath = _toLocalPath(context, path);
-      logger.trace('Checking entity type for local path: $localPath');
+      logger.trace(
+        '检查本地路径实体类型',
+        metadata: {'local_path': localPath, 'operation': 'check_entity_type'},
+      );
       final entity = FileSystemEntity.isDirectorySync(localPath)
           ? Directory(localPath)
           : File(localPath);
 
       if (!await entity.exists()) {
-        logger.debug('Entity does not exist: ${path.toString()}');
+        logger.debug(
+          '实体不存在',
+          metadata: {
+            'path': path.toString(),
+            'local_path': localPath,
+            'operation': 'entity_not_exists',
+          },
+        );
         return null;
       }
 
@@ -73,20 +113,33 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
       );
 
       logger.debug(
-        'File status retrieved - path: ${path.toString()}, '
-        'isDir: ${fileStatus.isDirectory}, size: ${fileStatus.size}',
+        '文件状态获取成功',
+        metadata: {
+          'path': path.toString(),
+          'is_directory': fileStatus.isDirectory,
+          'size': fileStatus.size,
+          'mime_type': fileStatus.mimeType,
+          'operation': 'file_status_retrieved',
+        },
       );
       return fileStatus;
     } on FileSystemException {
       logger.warning(
-        'FileSystemException occurred while getting status for: '
-        '${path.toString()}',
+        '获取文件状态时发生文件系统异常',
+        metadata: {
+          'path': path.toString(),
+          'operation': 'filesystem_exception',
+        },
       );
       rethrow;
     } on IOException catch (e) {
       logger.warning(
-        'IOException occurred while getting status for: ${path.toString()}, '
-        'error: $e',
+        '获取文件状态时发生IO异常',
+        metadata: {
+          'path': path.toString(),
+          'error': e.toString(),
+          'operation': 'io_exception',
+        },
       );
       throw FileSystemException(
         code: FileSystemErrorCode.ioError,
@@ -102,7 +155,13 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
     ListOptions options = const ListOptions(),
   }) async* {
     final logger = context.logger;
-    logger.debug('Starting non-recursive list for path: ${path.toString()}');
+    logger.debug(
+      '开始非递归目录列举',
+      metadata: {
+        'path': path.toString(),
+        'operation': 'start_non_recursive_list',
+      },
+    );
     final localPath = _toLocalPath(context, path);
     int itemCount = 0;
 
@@ -119,20 +178,36 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
         );
         itemCount++;
         logger.trace(
-          'Listed item $itemCount: '
-          '${fileStatus.path.toString()} '
-          '(${fileStatus.isDirectory ? "dir" : "file"})',
+          '列举项目',
+          metadata: {
+            'item_number': itemCount,
+            'path': fileStatus.path.toString(),
+            'is_directory': fileStatus.isDirectory,
+            'size': fileStatus.size,
+            'operation': 'list_item',
+          },
         );
         yield fileStatus;
       } on IOException catch (e) {
-        logger.warning('IOException while listing ${entity.path}: $e');
+        logger.warning(
+          '列举时发生IO异常',
+          metadata: {
+            'entity_path': entity.path,
+            'error': e.toString(),
+            'operation': 'list_io_exception',
+          },
+        );
         continue; // 跳过IO错误的文件
       }
     }
 
     logger.debug(
-      'Completed non-recursive list for ${path.toString()}, '
-      'found $itemCount items',
+      '非递归目录列举完成',
+      metadata: {
+        'path': path.toString(),
+        'item_count': itemCount,
+        'operation': 'non_recursive_list_completed',
+      },
     );
   }
 
@@ -144,8 +219,12 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
   }) {
     final logger = context.logger;
     logger.debug(
-      'Starting ${options.recursive ? "recursive" : "non-recursive"} '
-      'list for path: ${path.toString()}',
+      '开始目录列举',
+      metadata: {
+        'path': path.toString(),
+        'recursive': options.recursive,
+        'operation': 'start_directory_list',
+      },
     );
     // 遍历目录
     return listImplByNonRecursive(
@@ -164,7 +243,12 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
   }) {
     final logger = context.logger;
     logger.debug(
-      'Copying file from ${source.toString()} to ${destination.toString()}',
+      '复制单个文件',
+      metadata: {
+        'source': source.toString(),
+        'destination': destination.toString(),
+        'operation': 'copy_single_file',
+      },
     );
     return copyFileByReadAndWrite(
       context,
@@ -184,8 +268,14 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
   }) async {
     final logger = context.logger;
     logger.info(
-      'Starting copy operation '
-      'from ${source.toString()} to ${destination.toString()}',
+      '开始复制操作',
+      metadata: {
+        'source': source.toString(),
+        'destination': destination.toString(),
+        'overwrite': options.overwrite,
+        'recursive': options.recursive,
+        'operation': 'start_copy_operation',
+      },
     );
     try {
       await copyImplByNonRecursive(
@@ -198,13 +288,22 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
         nonRecursiveCreateDirectory: nonRecursiveCreateDirectory,
       );
       logger.info(
-        'Copy operation completed successfully '
-        'from ${source.toString()} to ${destination.toString()}',
+        '复制操作成功完成',
+        metadata: {
+          'source': source.toString(),
+          'destination': destination.toString(),
+          'operation': 'copy_operation_completed',
+        },
       );
     } catch (e) {
       logger.warning(
-        'Copy operation failed '
-        'from ${source.toString()} to ${destination.toString()}: $e',
+        '复制操作失败',
+        metadata: {
+          'source': source.toString(),
+          'destination': destination.toString(),
+          'error': e.toString(),
+          'operation': 'copy_operation_failed',
+        },
       );
       rethrow;
     }
@@ -216,7 +315,13 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
     CreateDirectoryOptions options = const CreateDirectoryOptions(),
   }) async {
     final logger = context.logger;
-    logger.debug('Creating directory: ${path.toString()}');
+    logger.debug(
+      '创建单个目录',
+      metadata: {
+        'path': path.toString(),
+        'operation': 'create_single_directory',
+      },
+    );
     try {
       final localPath = _toLocalPath(context, path);
       final directory = Directory(localPath);
@@ -225,17 +330,34 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
       final parent = directory.parent;
       if (!await parent.exists()) {
         logger.warning(
-          'Parent directory does not exist for: ${path.toString()}',
+          '父目录不存在',
+          metadata: {
+            'path': path.toString(),
+            'parent_path': parent.path,
+            'operation': 'parent_directory_not_exists',
+          },
         );
         throw FileSystemException.notFound(_toPath(context, parent.path));
       }
 
       // 创建目录
       await directory.create();
-      logger.debug('Directory created successfully: ${path.toString()}');
+      logger.debug(
+        '目录创建成功',
+        metadata: {
+          'path': path.toString(),
+          'local_path': localPath,
+          'operation': 'directory_created',
+        },
+      );
     } on IOException catch (e) {
       logger.warning(
-        'IOException while creating directory ${path.toString()}: $e',
+        '创建目录时发生IO异常',
+        metadata: {
+          'path': path.toString(),
+          'error': e.toString(),
+          'operation': 'create_directory_io_exception',
+        },
       );
       throw FileSystemException(
         code: FileSystemErrorCode.ioError,
@@ -252,7 +374,14 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
     CreateDirectoryOptions options = const CreateDirectoryOptions(),
   }) {
     final logger = context.logger;
-    logger.info('Starting create directory operation for: ${path.toString()}');
+    logger.info(
+      '开始创建目录操作',
+      metadata: {
+        'path': path.toString(),
+        'create_parents': options.createParents,
+        'operation': 'start_create_directory_operation',
+      },
+    );
     return createDirectoryImplByNonRecursive(
       context,
       nonRecursiveCreateDirectory: nonRecursiveCreateDirectory,
@@ -268,7 +397,12 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
   }) async {
     final logger = context.logger;
     logger.debug(
-      'Deleting entity: ${path.toString()} (recursive: ${options.recursive})',
+      '删除单个实体',
+      metadata: {
+        'path': path.toString(),
+        'recursive': options.recursive,
+        'operation': 'delete_single_entity',
+      },
     );
     try {
       final localPath = _toLocalPath(context, path);
@@ -276,34 +410,64 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
 
       switch (entity) {
         case FileSystemEntityType.file:
-          logger.trace('Deleting file: ${path.toString()}');
+          logger.trace(
+            '删除文件',
+            metadata: {'path': path.toString(), 'operation': 'delete_file'},
+          );
           await File(localPath).delete();
           break;
         case FileSystemEntityType.directory:
           logger.trace(
-            'Deleting directory: ${path.toString()} '
-            '(recursive: ${options.recursive})',
+            '删除目录',
+            metadata: {
+              'path': path.toString(),
+              'recursive': options.recursive,
+              'operation': 'delete_directory',
+            },
           );
           await Directory(localPath).delete(recursive: options.recursive);
           break;
         case FileSystemEntityType.link:
-          logger.trace('Deleting link: ${path.toString()}');
+          logger.trace(
+            '删除链接',
+            metadata: {'path': path.toString(), 'operation': 'delete_link'},
+          );
           await Link(localPath).delete();
           break;
         default:
           logger.warning(
-            'Unsupported entity type for deletion: ${path.toString()}',
+            '不支持的实体类型',
+            metadata: {
+              'path': path.toString(),
+              'entity_type': entity.toString(),
+              'operation': 'unsupported_entity_type',
+            },
           );
           throw FileSystemException.unsupportedEntity(path);
       }
-      logger.debug('Entity deleted successfully: ${path.toString()}');
+      logger.debug(
+        '实体删除成功',
+        metadata: {'path': path.toString(), 'operation': 'entity_deleted'},
+      );
     } on FileSystemException catch (e) {
       logger.warning(
-        'FileSystemException while deleting ${path.toString()}: $e',
+        '删除时发生文件系统异常',
+        metadata: {
+          'path': path.toString(),
+          'error': e.toString(),
+          'operation': 'delete_filesystem_exception',
+        },
       );
       rethrow;
     } on IOException catch (e) {
-      logger.warning('IOException while deleting ${path.toString()}: $e');
+      logger.warning(
+        '删除时发生IO异常',
+        metadata: {
+          'path': path.toString(),
+          'error': e.toString(),
+          'operation': 'delete_io_exception',
+        },
+      );
       throw FileSystemException(
         code: FileSystemErrorCode.ioError,
         message: 'Failed to delete: ${e.toString()}',
@@ -320,8 +484,12 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
   }) {
     final logger = context.logger;
     logger.info(
-      'Starting delete operation for: ${path.toString()} '
-      '(recursive: ${options.recursive})',
+      '开始删除操作',
+      metadata: {
+        'path': path.toString(),
+        'recursive': options.recursive,
+        'operation': 'start_delete_operation',
+      },
     );
     return deleteImplByNonRecursive(
       context,
@@ -340,7 +508,12 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
   }) async {
     final logger = context.logger;
     logger.debug(
-      'Opening write stream for: ${path.toString()} (mode: ${options.mode})',
+      '打开写入流',
+      metadata: {
+        'path': path.toString(),
+        'mode': options.mode.toString(),
+        'operation': 'open_write_stream',
+      },
     );
     await preOpenWriteCheck(context, path, options: options);
     try {
@@ -351,11 +524,19 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
           WriteMode.append: FileMode.append,
         }[options.mode]!,
       );
-      logger.debug('Write stream opened successfully for: ${path.toString()}');
+      logger.debug(
+        '写入流打开成功',
+        metadata: {'path': path.toString(), 'operation': 'write_stream_opened'},
+      );
       return sink;
     } on IOException catch (e) {
       logger.warning(
-        'IOException while opening write stream for ${path.toString()}: $e',
+        '打开写入流时发生IO异常',
+        metadata: {
+          'path': path.toString(),
+          'error': e.toString(),
+          'operation': 'open_write_stream_io_exception',
+        },
       );
       throw FileSystemException(
         code: FileSystemErrorCode.ioError,
@@ -373,8 +554,13 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
   }) async* {
     final logger = context.logger;
     logger.debug(
-      'Opening read stream for: ${path.toString()} '
-      '(start: ${options.start}, end: ${options.end})',
+      '打开读取流',
+      metadata: {
+        'path': path.toString(),
+        'start': options.start,
+        'end': options.end,
+        'operation': 'open_read_stream',
+      },
     );
     await preOpenReadCheck(context, path, options: options);
     try {
@@ -385,15 +571,32 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
       ).openRead(options.start, options.end)) {
         bytesRead += chunk.length;
         logger.trace(
-          'Read chunk of ${chunk.length} bytes from ${path.toString()}',
+          '读取数据块',
+          metadata: {
+            'chunk_size': chunk.length,
+            'path': path.toString(),
+            'operation': 'read_chunk',
+          },
         );
         yield chunk; // 逐块返回文件内容
       }
       logger.debug(
-        'Read stream completed for ${path.toString()}, total bytes: $bytesRead',
+        '读取流完成',
+        metadata: {
+          'path': path.toString(),
+          'total_bytes': bytesRead,
+          'operation': 'read_stream_completed',
+        },
       );
     } on IOException catch (e) {
-      logger.warning('IOException while reading file ${path.toString()}: $e');
+      logger.warning(
+        '读取文件时发生IO异常',
+        metadata: {
+          'path': path.toString(),
+          'error': e.toString(),
+          'operation': 'read_file_io_exception',
+        },
+      );
       throw FileSystemException(
         code: FileSystemErrorCode.ioError,
         message: 'Failed to read file: ${e.toString()}',

@@ -130,19 +130,32 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
 
   _MemoryFileEntity? _getEntity(Context context, Path path) {
     final logger = context.logger;
-    logger.trace('Getting entity for path: $path');
+    logger.trace(
+      '获取实体',
+      metadata: {'path': path.toString(), 'operation': 'get_entity'},
+    );
     if (path.segments.isEmpty) return _rootDir;
 
     var current = _rootDir;
     for (final segment in path.segments) {
       final child = current.children?[segment];
       if (child == null) {
-        logger.trace('Entity not found at segment: $segment in path: $path');
+        logger.trace(
+          '实体未找到',
+          metadata: {
+            'segment': segment,
+            'path': path.toString(),
+            'operation': 'entity_not_found_at_segment',
+          },
+        );
         return null;
       }
       current = child;
     }
-    logger.trace('Found entity for path: $path');
+    logger.trace(
+      '找到实体',
+      metadata: {'path': path.toString(), 'operation': 'entity_found'},
+    );
     return current;
   }
 
@@ -152,21 +165,37 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     ListOptions options = const ListOptions(),
   }) async* {
     final logger = context.logger;
-    logger.debug('Listing directory: $path');
+    logger.debug(
+      '列举目录',
+      metadata: {'path': path.toString(), 'operation': 'list_directory'},
+    );
     _listOperations++;
 
     final entity = _getEntity(context, path);
     if (entity == null) {
-      logger.warning('Directory not found: $path');
+      logger.warning(
+        '目录未找到',
+        metadata: {'path': path.toString(), 'operation': 'directory_not_found'},
+      );
       throw FileSystemException.notFound(path);
     }
     if (!entity.status.isDirectory) {
-      logger.warning('Path is not a directory: $path');
+      logger.warning(
+        '路径不是目录',
+        metadata: {'path': path.toString(), 'operation': 'path_not_directory'},
+      );
       throw FileSystemException.notADirectory(path);
     }
 
     final childCount = entity.children!.length;
-    logger.debug('Found $childCount children in directory: $path');
+    logger.debug(
+      '目录中找到子项',
+      metadata: {
+        'path': path.toString(),
+        'child_count': childCount,
+        'operation': 'found_children_in_directory',
+      },
+    );
 
     for (final child in entity.children!.values) {
       yield child.status;
@@ -180,7 +209,15 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     ListOptions options = const ListOptions(),
   }) {
     final logger = context.logger;
-    logger.log(Level.debug, 'Listing directory: $path');
+    logger.log(
+      Level.debug,
+      '列举目录',
+      metadata: {
+        'path': path.toString(),
+        'recursive': options.recursive,
+        'operation': 'list_directory',
+      },
+    );
 
     if (!options.recursive) {
       return nonRecursiveList(context, path, options: options);
@@ -251,7 +288,16 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
   }) async {
     // 简化实现，直接在这里处理
     final logger = context.logger;
-    logger.debug('Copying $source to $destination');
+    logger.debug(
+      '复制文件',
+      metadata: {
+        'source': source.toString(),
+        'destination': destination.toString(),
+        'overwrite': options.overwrite,
+        'recursive': options.recursive,
+        'operation': 'copy_file',
+      },
+    );
 
     final sourceEntity = _getEntity(context, source);
     if (sourceEntity == null) {
@@ -298,13 +344,21 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     Path path, {
     CreateDirectoryOptions options = const CreateDirectoryOptions(),
   }) async {
-    context.logger.log(Level.debug, 'Creating directory: $path');
+    context.logger.log(
+      Level.debug,
+      '创建目录',
+      metadata: {'path': path.toString(), 'operation': 'create_directory'},
+    );
     // 先寻找到path的父目录
     final parentDir = path.parent;
     if (parentDir == null) {
       context.logger.log(
         Level.warning,
-        'Cannot create directory: no parent path for $path',
+        '无法创建目录：无父路径',
+        metadata: {
+          'path': path.toString(),
+          'operation': 'cannot_create_directory_no_parent',
+        },
       );
       throw FileSystemException.notFound(path);
     }
@@ -313,7 +367,11 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     if (parentEntity == null) {
       context.logger.log(
         Level.warning,
-        'Parent directory not found: $parentDir',
+        '父目录未找到',
+        metadata: {
+          'parent_dir': parentDir.toString(),
+          'operation': 'parent_directory_not_found',
+        },
       );
       throw FileSystemException.notFound(parentDir);
     }
@@ -321,7 +379,11 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     if (!parentEntity.status.isDirectory) {
       context.logger.log(
         Level.warning,
-        'Parent is not a directory: $parentDir',
+        '父路径不是目录',
+        metadata: {
+          'parent_dir': parentDir.toString(),
+          'operation': 'parent_not_directory',
+        },
       );
       throw FileSystemException.notADirectory(parentDir);
     }
@@ -329,7 +391,14 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     final dirName = path.filename!;
     // 检查是否已存在
     if (parentEntity.children!.containsKey(dirName)) {
-      context.logger.log(Level.warning, 'Directory already exists: $path');
+      context.logger.log(
+        Level.warning,
+        '目录已存在',
+        metadata: {
+          'path': path.toString(),
+          'operation': 'directory_already_exists',
+        },
+      );
       throw FileSystemException.alreadyExists(path);
     }
 
@@ -339,7 +408,14 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
       children: <String, _MemoryFileEntity>{},
     );
     parentEntity.children![dirName] = newDir;
-    context.logger.log(Level.debug, 'Directory created successfully: $path');
+    context.logger.log(
+      Level.debug,
+      '目录创建成功',
+      metadata: {
+        'path': path.toString(),
+        'operation': 'directory_created_successfully',
+      },
+    );
   }
 
   @override
@@ -384,30 +460,60 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     DeleteOptions options = const DeleteOptions(),
   }) async {
     final logger = context.logger;
-    logger.debug('Deleting: $path (recursive: ${options.recursive})');
+    logger.debug(
+      '删除文件',
+      metadata: {
+        'path': path.toString(),
+        'recursive': options.recursive,
+        'operation': 'delete_file',
+      },
+    );
     // 寻找文件或目录
     final entity = _getEntity(context, path);
     if (entity == null) {
-      logger.warning('Delete failed: entity not found: $path');
+      logger.warning(
+        '删除失败：实体未找到',
+        metadata: {
+          'path': path.toString(),
+          'operation': 'delete_failed_entity_not_found',
+        },
+      );
       throw FileSystemException.notFound(path);
     }
     // 如果是目录，检查是否为空
     if (entity.status.isDirectory &&
         entity.children!.isNotEmpty &&
         !options.recursive) {
-      logger.warning('Delete failed: directory not empty: $path');
+      logger.warning(
+        '删除失败：目录非空',
+        metadata: {
+          'path': path.toString(),
+          'operation': 'delete_failed_directory_not_empty',
+        },
+      );
       throw FileSystemException.notEmptyDirectory(path);
     }
     // 从父目录中删除
     final parentPath = path.parent;
     if (parentPath == null) {
-      logger.warning('Delete failed: no parent path: $path');
+      logger.warning(
+        '删除失败：无父路径',
+        metadata: {
+          'path': path.toString(),
+          'operation': 'delete_failed_no_parent_path',
+        },
+      );
       throw FileSystemException.notFound(path);
     }
     final parentEntity = _getEntity(context, parentPath);
     if (parentEntity == null || !parentEntity.status.isDirectory) {
       logger.warning(
-        'Delete failed: parent not found or not directory: $parentPath',
+        '删除失败：父目录未找到或不是目录',
+        metadata: {
+          'path': path.toString(),
+          'parent_path': parentPath.toString(),
+          'operation': 'delete_failed_parent_not_found_or_not_directory',
+        },
       );
       throw FileSystemException.notADirectory(parentPath);
     }
@@ -415,10 +521,17 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     final fileName = path.filename!;
     final removed = parentEntity.children!.remove(fileName);
     if (removed != null) {
-      logger.debug('Successfully deleted: $path');
+      logger.debug(
+        '删除成功',
+        metadata: {'path': path.toString(), 'operation': 'delete_successful'},
+      );
     } else {
       logger.warning(
-        'Delete failed: file not found in parent directory: $path',
+        '删除失败：在父目录中未找到文件',
+        metadata: {
+          'path': path.toString(),
+          'operation': 'delete_failed_file_not_found_in_parent',
+        },
       );
     }
   }
@@ -431,8 +544,13 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
   }) async* {
     final logger = context.logger;
     logger.debug(
-      'Opening read stream for: $path (start: ${options.start}, '
-      'end: ${options.end})',
+      '打开读取流',
+      metadata: {
+        'path': path.toString(),
+        'start': options.start,
+        'end': options.end,
+        'operation': 'open_read_stream',
+      },
     );
     _readOperations++;
 
@@ -447,7 +565,16 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     final readSize = end - start;
     _totalBytesRead += readSize;
 
-    logger.debug('Reading $readSize bytes from $path ($start-$end)');
+    logger.debug(
+      '读取字节数据',
+      metadata: {
+        'path': path.toString(),
+        'read_size': readSize,
+        'start': start,
+        'end': end,
+        'operation': 'reading_bytes',
+      },
+    );
     yield content.sublist(start, end);
   }
 
@@ -458,18 +585,36 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     WriteOptions options = const WriteOptions(),
   }) async {
     final logger = context.logger;
-    logger.debug('Opening write stream for: $path (mode: ${options.mode})');
+    logger.debug(
+      '打开写入流',
+      metadata: {
+        'path': path.toString(),
+        'mode': options.mode.toString(),
+        'operation': 'open_write_stream',
+      },
+    );
     // 预检查所有
     await preOpenWriteCheck(context, path, options: options);
     final parentPath = path.parent;
     if (parentPath == null) {
-      logger.warning('Write failed: no parent path for $path');
+      logger.warning(
+        '写入失败：无父路径',
+        metadata: {
+          'path': path.toString(),
+          'operation': 'write_failed_no_parent_path',
+        },
+      );
       throw FileSystemException.notFound(path);
     }
     final parentEntity = _getEntity(context, parentPath);
     if (parentEntity == null || !parentEntity.status.isDirectory) {
       logger.warning(
-        'Write failed: parent not found or not directory: $parentPath',
+        '写入失败：父目录未找到或不是目录',
+        metadata: {
+          'path': path.toString(),
+          'parent_path': parentPath.toString(),
+          'operation': 'write_failed_parent_not_found_or_not_directory',
+        },
       );
       throw FileSystemException.notADirectory(parentPath);
     }
@@ -490,9 +635,23 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     // 如果是追加模式，继承旧内容
     if (options.mode == WriteMode.append && existingEntity != null) {
       newEntity.addWriteData(existingEntity.content!);
-      logger.debug('Appending to existing file: $path');
+      logger.debug(
+        '追加到现有文件',
+        metadata: {
+          'path': path.toString(),
+          'existing_size': existingEntity.content!.length,
+          'operation': 'append_to_existing_file',
+        },
+      );
     } else {
-      logger.debug('Creating new file or overwriting: $path');
+      logger.debug(
+        '创建新文件或覆盖',
+        metadata: {
+          'path': path.toString(),
+          'is_overwrite': existingEntity != null,
+          'operation': 'create_new_or_overwrite_file',
+        },
+      );
     }
 
     parentEntity.children![fileName] = newEntity; // 添加新文件
@@ -501,7 +660,14 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     final controller = StreamController<List<int>>();
     controller.stream.listen(
       (data) {
-        logger.trace('Writing ${data.length} bytes to $path');
+        logger.trace(
+          '写入数据块',
+          metadata: {
+            'path': path.toString(),
+            'bytes_written': data.length,
+            'operation': 'writing_data_chunk',
+          },
+        );
         _totalBytesWritten += data.length;
         newEntity.addWriteData(data);
 
@@ -519,14 +685,25 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
         newEntity.flushWriteBuffer();
 
         logger.debug(
-          'Write completed for $path, final size: '
-          '${newEntity.content?.length ?? 0} bytes, '
-          'buffer size before flush: $bufferSizeBeforeFlush bytes',
+          '写入完成',
+          metadata: {
+            'path': path.toString(),
+            'final_size': newEntity.content?.length ?? 0,
+            'buffer_size_before_flush': bufferSizeBeforeFlush,
+            'operation': 'write_completed',
+          },
         );
         controller.close();
       },
       onError: (Object error, StackTrace? stackTrace) {
-        logger.warning('Write error for $path: $error');
+        logger.warning(
+          '写入错误',
+          metadata: {
+            'path': path.toString(),
+            'error': error.toString(),
+            'operation': 'write_error',
+          },
+        );
         controller.addError(error, stackTrace);
       },
     );
@@ -540,10 +717,19 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     StatOptions options = const StatOptions(),
   }) async {
     final logger = context.logger;
-    logger.debug('Getting status for: $path');
+    logger.debug(
+      '获取文件状态',
+      metadata: {'path': path.toString(), 'operation': 'get_file_status'},
+    );
     final entity = _getEntity(context, path);
     if (entity == null) {
-      logger.debug('Status not found for: $path');
+      logger.debug(
+        '文件状态未找到',
+        metadata: {
+          'path': path.toString(),
+          'operation': 'file_status_not_found',
+        },
+      );
       return null;
     }
 
@@ -560,8 +746,13 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     }
 
     logger.debug(
-      'Status found for $path: isDirectory=${entity.status.isDirectory}, '
-      'size=${entity.status.size}',
+      '文件状态获取成功',
+      metadata: {
+        'path': path.toString(),
+        'is_directory': entity.status.isDirectory,
+        'size': entity.status.size,
+        'operation': 'file_status_found',
+      },
     );
     return entity.status;
   }
@@ -575,20 +766,37 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
   }) async {
     final logger = context.logger;
     logger.debug(
-      'Direct writing ${data.length} bytes to: $path (mode: ${options.mode})',
+      '直接写入字节数据',
+      metadata: {
+        'path': path.toString(),
+        'data_size': data.length,
+        'mode': options.mode.toString(),
+        'operation': 'direct_write_bytes',
+      },
     );
 
     // 预检查
     await preOpenWriteCheck(context, path, options: options);
     final parentPath = path.parent;
     if (parentPath == null) {
-      logger.warning('Write failed: no parent path for $path');
+      logger.warning(
+        '写入失败：无父路径',
+        metadata: {
+          'path': path.toString(),
+          'operation': 'write_failed_no_parent_path',
+        },
+      );
       throw FileSystemException.notFound(path);
     }
     final parentEntity = _getEntity(context, parentPath);
     if (parentEntity == null || !parentEntity.status.isDirectory) {
       logger.warning(
-        'Write failed: parent not found or not directory: $parentPath',
+        '写入失败：父目录未找到或不是目录',
+        metadata: {
+          'path': path.toString(),
+          'parent_path': parentPath.toString(),
+          'operation': 'write_failed_parent_not_found_or_not_directory',
+        },
       );
       throw FileSystemException.notADirectory(parentPath);
     }
@@ -614,13 +822,26 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
       builder.add(data);
       newEntity.content = builder.toBytes();
       logger.debug(
-        'Appended to existing file: $path, '
-        'new size: ${newEntity.content!.length}',
+        '追加到现有文件',
+        metadata: {
+          'path': path.toString(),
+          'new_size': newEntity.content!.length,
+          'appended_bytes': data.length,
+          'operation': 'appended_to_existing_file',
+        },
       );
     } else {
       // 覆盖或新建模式
       newEntity.content = data;
-      logger.debug('Created/overwrote file: $path, size: ${data.length}');
+      logger.debug(
+        '创建或覆盖文件',
+        metadata: {
+          'path': path.toString(),
+          'size': data.length,
+          'is_overwrite': existingEntity != null,
+          'operation': 'created_or_overwrote_file',
+        },
+      );
     }
 
     parentEntity.children![fileName] = newEntity;
@@ -629,7 +850,14 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     _writeOperations++;
     _totalBytesWritten += data.length;
 
-    logger.debug('Direct write completed for $path');
+    logger.debug(
+      '直接写入完成',
+      metadata: {
+        'path': path.toString(),
+        'bytes_written': data.length,
+        'operation': 'direct_write_completed',
+      },
+    );
   }
 
   /// 高效的文件拷贝方法，直接操作内存
@@ -640,7 +868,15 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
     bool overwrite = false,
   }) async {
     final logger = context.logger;
-    logger.debug('Direct copying from $source to $destination');
+    logger.debug(
+      '直接复制文件',
+      metadata: {
+        'source': source.toString(),
+        'destination': destination.toString(),
+        'overwrite': overwrite,
+        'operation': 'direct_copy_file',
+      },
+    );
 
     final sourceEntity = _getEntity(context, source);
     if (sourceEntity == null) {
@@ -669,6 +905,14 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
       ),
     );
 
-    logger.debug('Direct copy completed: $source -> $destination');
+    logger.debug(
+      '直接复制完成',
+      metadata: {
+        'source': source.toString(),
+        'destination': destination.toString(),
+        'bytes_copied': sourceEntity.content!.length,
+        'operation': 'direct_copy_completed',
+      },
+    );
   }
 }

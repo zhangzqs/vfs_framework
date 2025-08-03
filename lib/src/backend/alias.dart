@@ -19,15 +19,26 @@ class AliasFileSystem extends IFileSystem {
     final logger = context.logger;
     if (subDirectory.isRoot) {
       logger.trace(
-        'Converting alias path (root case): $aliasPath -> $aliasPath',
+        '转换别名路径（根目录情况）',
+        metadata: {
+          'alias_path': aliasPath.toString(),
+          'real_path': aliasPath.toString(),
+          'subdirectory': 'root',
+          'operation': 'convert_to_real_path_root',
+        },
       );
       return aliasPath;
     }
     // 将alias路径与子目录路径合并
     final realPath = Path([...subDirectory.segments, ...aliasPath.segments]);
     logger.trace(
-      'Converting alias path: '
-      '$aliasPath -> $realPath (subdirectory: $subDirectory)',
+      '转换别名路径',
+      metadata: {
+        'alias_path': aliasPath.toString(),
+        'real_path': realPath.toString(),
+        'subdirectory': subDirectory.toString(),
+        'operation': 'convert_to_real_path',
+      },
     );
     return realPath;
   }
@@ -36,15 +47,28 @@ class AliasFileSystem extends IFileSystem {
   Path _convertFromRealPath(Context context, Path realPath) {
     final logger = context.logger;
     if (subDirectory.isRoot) {
-      logger.trace('Converting real path (root case): $realPath -> $realPath');
+      logger.trace(
+        '转换真实路径（根目录情况）',
+        metadata: {
+          'real_path': realPath.toString(),
+          'alias_path': realPath.toString(),
+          'subdirectory': 'root',
+          'operation': 'convert_from_real_path_root',
+        },
+      );
       return realPath;
     }
 
     // 检查路径是否在子目录下
     if (realPath.segments.length < subDirectory.segments.length) {
       logger.warning(
-        'Real path is too short: $realPath '
-        '(subdirectory depth: ${subDirectory.segments.length})',
+        '真实路径长度不足',
+        metadata: {
+          'real_path': realPath.toString(),
+          'real_path_segments': realPath.segments.length,
+          'subdirectory_depth': subDirectory.segments.length,
+          'operation': 'path_too_short_error',
+        },
       );
       throw ArgumentError('Real path is not under subdirectory');
     }
@@ -53,9 +77,15 @@ class AliasFileSystem extends IFileSystem {
     for (int i = 0; i < subDirectory.segments.length; i++) {
       if (realPath.segments[i] != subDirectory.segments[i]) {
         logger.warning(
-          'Path prefix mismatch at segment $i: '
-          'expected "${subDirectory.segments[i]}", '
-          'got "${realPath.segments[i]}"',
+          '路径前缀不匹配',
+          metadata: {
+            'real_path': realPath.toString(),
+            'subdirectory': subDirectory.toString(),
+            'mismatch_index': i,
+            'expected_segment': subDirectory.segments[i],
+            'actual_segment': realPath.segments[i],
+            'operation': 'path_prefix_mismatch_error',
+          },
         );
         throw ArgumentError('Real path is not under subdirectory');
       }
@@ -66,8 +96,13 @@ class AliasFileSystem extends IFileSystem {
       realPath.segments.sublist(subDirectory.segments.length),
     );
     logger.trace(
-      'Converting real path: '
-      '$realPath -> $aliasPath (removed subdirectory: $subDirectory)',
+      '转换真实路径',
+      metadata: {
+        'real_path': realPath.toString(),
+        'alias_path': aliasPath.toString(),
+        'removed_subdirectory': subDirectory.toString(),
+        'operation': 'convert_from_real_path',
+      },
     );
     return aliasPath;
   }
@@ -81,12 +116,25 @@ class AliasFileSystem extends IFileSystem {
   }) {
     final logger = context.logger;
     logger.debug(
-      'Copying: $source -> $destination '
-      '(overwrite: ${options.overwrite}, recursive: ${options.recursive})',
+      '复制文件',
+      metadata: {
+        'source': source.toString(),
+        'destination': destination.toString(),
+        'overwrite': options.overwrite,
+        'recursive': options.recursive,
+        'operation': 'copy_file',
+      },
     );
     final realSource = _convertToRealPath(context, source);
     final realDestination = _convertToRealPath(context, destination);
-    logger.debug('Real paths: $realSource -> $realDestination');
+    logger.debug(
+      '真实路径映射',
+      metadata: {
+        'real_source': realSource.toString(),
+        'real_destination': realDestination.toString(),
+        'operation': 'copy_real_paths',
+      },
+    );
     return fileSystem.copy(
       context,
       realSource,
@@ -103,10 +151,21 @@ class AliasFileSystem extends IFileSystem {
   }) {
     final logger = context.logger;
     logger.debug(
-      'Creating directory: $path (createParents: ${options.createParents})',
+      '创建目录',
+      metadata: {
+        'path': path.toString(),
+        'create_parents': options.createParents,
+        'operation': 'create_directory',
+      },
     );
     final realPath = _convertToRealPath(context, path);
-    logger.debug('Real path: $realPath');
+    logger.debug(
+      '真实路径',
+      metadata: {
+        'real_path': realPath.toString(),
+        'operation': 'create_directory_real_path',
+      },
+    );
     return fileSystem.createDirectory(context, realPath, options: options);
   }
 
@@ -117,9 +176,22 @@ class AliasFileSystem extends IFileSystem {
     DeleteOptions options = const DeleteOptions(),
   }) {
     final logger = context.logger;
-    logger.debug('Deleting: $path (recursive: ${options.recursive})');
+    logger.debug(
+      '删除文件',
+      metadata: {
+        'path': path.toString(),
+        'recursive': options.recursive,
+        'operation': 'delete_file',
+      },
+    );
     final realPath = _convertToRealPath(context, path);
-    logger.debug('Real path: $realPath');
+    logger.debug(
+      '真实路径',
+      metadata: {
+        'real_path': realPath.toString(),
+        'operation': 'delete_real_path',
+      },
+    );
     return fileSystem.delete(context, realPath, options: options);
   }
 
@@ -130,7 +202,10 @@ class AliasFileSystem extends IFileSystem {
     ExistsOptions options = const ExistsOptions(),
   }) {
     final logger = context.logger;
-    logger.trace('Checking existence: $path');
+    logger.trace(
+      '检查文件存在性',
+      metadata: {'path': path.toString(), 'operation': 'check_exists'},
+    );
     final realPath = _convertToRealPath(context, path);
     return fileSystem.exists(context, realPath, options: options);
   }
@@ -142,9 +217,22 @@ class AliasFileSystem extends IFileSystem {
     ListOptions options = const ListOptions(),
   }) async* {
     final logger = context.logger;
-    logger.debug('Listing directory: $path (recursive: ${options.recursive})');
+    logger.debug(
+      '列举目录',
+      metadata: {
+        'path': path.toString(),
+        'recursive': options.recursive,
+        'operation': 'list_directory',
+      },
+    );
     final realPath = _convertToRealPath(context, path);
-    logger.debug('Real path: $realPath');
+    logger.debug(
+      '真实路径',
+      metadata: {
+        'real_path': realPath.toString(),
+        'operation': 'list_real_path',
+      },
+    );
 
     var itemCount = 0;
     await for (final status in fileSystem.list(
@@ -163,7 +251,14 @@ class AliasFileSystem extends IFileSystem {
         mimeType: status.mimeType,
       );
     }
-    logger.debug('Listed $itemCount items in directory: $path');
+    logger.debug(
+      '目录列举完成',
+      metadata: {
+        'path': path.toString(),
+        'item_count': itemCount,
+        'operation': 'list_directory_completed',
+      },
+    );
   }
 
   @override
@@ -175,12 +270,25 @@ class AliasFileSystem extends IFileSystem {
   }) {
     final logger = context.logger;
     logger.debug(
-      'Moving: $source -> $destination '
-      '(overwrite: ${options.overwrite}, recursive: ${options.recursive})',
+      '移动文件',
+      metadata: {
+        'source': source.toString(),
+        'destination': destination.toString(),
+        'overwrite': options.overwrite,
+        'recursive': options.recursive,
+        'operation': 'move_file',
+      },
     );
     final realSource = _convertToRealPath(context, source);
     final realDestination = _convertToRealPath(context, destination);
-    logger.debug('Real paths: $realSource -> $realDestination');
+    logger.debug(
+      '真实路径映射',
+      metadata: {
+        'real_source': realSource.toString(),
+        'real_destination': realDestination.toString(),
+        'operation': 'move_real_paths',
+      },
+    );
     return fileSystem.move(
       context,
       realSource,
@@ -197,11 +305,22 @@ class AliasFileSystem extends IFileSystem {
   }) {
     final logger = context.logger;
     logger.debug(
-      'Opening read stream: $path '
-      '(start: ${options.start}, end: ${options.end})',
+      '打开读取流',
+      metadata: {
+        'path': path.toString(),
+        'start': options.start,
+        'end': options.end,
+        'operation': 'open_read_stream',
+      },
     );
     final realPath = _convertToRealPath(context, path);
-    logger.debug('Real path: $realPath');
+    logger.debug(
+      '真实路径',
+      metadata: {
+        'real_path': realPath.toString(),
+        'operation': 'open_read_real_path',
+      },
+    );
     return fileSystem.openRead(context, realPath, options: options);
   }
 
@@ -212,9 +331,22 @@ class AliasFileSystem extends IFileSystem {
     WriteOptions options = const WriteOptions(),
   }) {
     final logger = context.logger;
-    logger.debug('Opening write stream: $path (mode: ${options.mode})');
+    logger.debug(
+      '打开写入流',
+      metadata: {
+        'path': path.toString(),
+        'mode': options.mode.toString(),
+        'operation': 'open_write_stream',
+      },
+    );
     final realPath = _convertToRealPath(context, path);
-    logger.debug('Real path: $realPath');
+    logger.debug(
+      '真实路径',
+      metadata: {
+        'real_path': realPath.toString(),
+        'operation': 'open_write_real_path',
+      },
+    );
     return fileSystem.openWrite(context, realPath, options: options);
   }
 
@@ -226,10 +358,22 @@ class AliasFileSystem extends IFileSystem {
   }) {
     final logger = context.logger;
     logger.debug(
-      'Reading bytes: $path (start: ${options.start}, end: ${options.end})',
+      '读取字节数据',
+      metadata: {
+        'path': path.toString(),
+        'start': options.start,
+        'end': options.end,
+        'operation': 'read_as_bytes',
+      },
     );
     final realPath = _convertToRealPath(context, path);
-    logger.debug('Real path: $realPath');
+    logger.debug(
+      '真实路径',
+      metadata: {
+        'real_path': realPath.toString(),
+        'operation': 'read_bytes_real_path',
+      },
+    );
     return fileSystem.readAsBytes(context, realPath, options: options);
   }
 
@@ -240,7 +384,10 @@ class AliasFileSystem extends IFileSystem {
     StatOptions options = const StatOptions(),
   }) async {
     final logger = context.logger;
-    logger.trace('Getting status: $path');
+    logger.trace(
+      '获取文件状态',
+      metadata: {'path': path.toString(), 'operation': 'get_file_status'},
+    );
     final realPath = _convertToRealPath(context, path);
     final realStatus = await fileSystem.stat(
       context,
@@ -249,13 +396,25 @@ class AliasFileSystem extends IFileSystem {
     );
 
     if (realStatus == null) {
-      logger.trace('Status not found: $path');
+      logger.trace(
+        '文件状态未找到',
+        metadata: {
+          'path': path.toString(),
+          'operation': 'file_status_not_found',
+        },
+      );
       return null;
     }
 
     logger.trace(
-      'Status found: $path (isDirectory: ${realStatus.isDirectory}, '
-      'size: ${realStatus.size})',
+      '文件状态已找到',
+      metadata: {
+        'path': path.toString(),
+        'is_directory': realStatus.isDirectory,
+        'size': realStatus.size,
+        'mime_type': realStatus.mimeType,
+        'operation': 'file_status_found',
+      },
     );
     // 将真实路径转换为alias路径
     return FileStatus(
@@ -275,10 +434,22 @@ class AliasFileSystem extends IFileSystem {
   }) {
     final logger = context.logger;
     logger.debug(
-      'Writing bytes: $path (${data.length} bytes, mode: ${options.mode})',
+      '写入字节数据',
+      metadata: {
+        'path': path.toString(),
+        'data_length': data.length,
+        'mode': options.mode.toString(),
+        'operation': 'write_bytes',
+      },
     );
     final realPath = _convertToRealPath(context, path);
-    logger.debug('Real path: $realPath');
+    logger.debug(
+      '真实路径',
+      metadata: {
+        'real_path': realPath.toString(),
+        'operation': 'write_bytes_real_path',
+      },
+    );
     return fileSystem.writeBytes(context, realPath, data, options: options);
   }
 }

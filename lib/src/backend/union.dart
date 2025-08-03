@@ -30,12 +30,25 @@ class UnionFileSystem extends IFileSystem {
       return _isPathUnder(path, item.mountPath);
     }).toList();
 
-    logger.trace('Found ${items.length} filesystem items for path: $path');
-    for (final item in items) {
+    logger.trace(
+      '查找路径的文件系统项',
+      metadata: {
+        'path': path.toString(),
+        'found_items': items.length,
+        'operation': 'get_items_for_path',
+      },
+    );
+    for (int i = 0; i < items.length; i++) {
+      final item = items[i];
       logger.trace(
-        '  - Mount: ${item.mountPath}, '
-        'Priority: ${item.priority}, '
-        'ReadOnly: ${item.readOnly}',
+        '文件系统项详情',
+        metadata: {
+          'index': i,
+          'mount_path': item.mountPath.toString(),
+          'priority': item.priority,
+          'read_only': item.readOnly,
+          'operation': 'filesystem_item_details',
+        },
       );
     }
 
@@ -62,7 +75,15 @@ class UnionFileSystem extends IFileSystem {
     // 移除挂载点前缀
     final segments = unionPath.segments.sublist(mountPath.segments.length);
     final ret = Path(segments);
-    logger.trace('Convert path: $unionPath -> $ret (mount: $mountPath)');
+    logger.trace(
+      '转换路径',
+      metadata: {
+        'union_path': unionPath.toString(),
+        'mount_path': mountPath.toString(),
+        'internal_path': ret.toString(),
+        'operation': 'convert_path',
+      },
+    );
     return ret;
   }
 
@@ -72,7 +93,10 @@ class UnionFileSystem extends IFileSystem {
     Path path,
   ) async {
     final logger = context.logger;
-    logger.debug('Searching for readable item for path: $path');
+    logger.debug(
+      '搜索可读文件系统项',
+      metadata: {'path': path.toString(), 'operation': 'search_readable_item'},
+    );
     final items = _getItemsForPath(context, path);
 
     // 按挂载点的具体程度排序（路径段数更多的更具体），然后按优先级排序
@@ -87,32 +111,57 @@ class UnionFileSystem extends IFileSystem {
     for (final item in items) {
       final internalPath = _convertPath(context, path, item.mountPath);
       logger.trace(
-        'Checking existence in filesystem: ${item.mountPath} -> $internalPath',
+        '检查文件系统中的存在性',
+        metadata: {
+          'mount_path': item.mountPath.toString(),
+          'internal_path': internalPath.toString(),
+          'operation': 'check_existence_in_filesystem',
+        },
       );
 
       if (await item.fileSystem.exists(context, internalPath)) {
         logger.debug(
-          'Found readable item for $path in filesystem: ${item.mountPath}',
+          '找到可读文件系统项',
+          metadata: {
+            'path': path.toString(),
+            'mount_path': item.mountPath.toString(),
+            'operation': 'found_readable_item',
+          },
         );
         return item;
       }
     }
 
-    logger.debug('No readable item found for path: $path');
+    logger.debug(
+      '未找到可读文件系统项',
+      metadata: {
+        'path': path.toString(),
+        'operation': 'no_readable_item_found',
+      },
+    );
     return null;
   }
 
   /// 获取第一个可写的文件系统项，优先选择最具体的挂载点
   UnionFileSystemItem? _getFirstWritableItem(Context context, Path path) {
     final logger = context.logger;
-    logger.debug('Searching for writable item for path: $path');
+    logger.debug(
+      '搜索可写文件系统项',
+      metadata: {'path': path.toString(), 'operation': 'search_writable_item'},
+    );
     final items = _getItemsForPath(
       context,
       path,
     ).where((item) => !item.readOnly).toList();
 
     if (items.isEmpty) {
-      logger.warning('No writable filesystem found for path: $path');
+      logger.warning(
+        '未找到可写文件系统',
+        metadata: {
+          'path': path.toString(),
+          'operation': 'no_writable_filesystem_found',
+        },
+      );
       return null;
     }
 
@@ -127,8 +176,13 @@ class UnionFileSystem extends IFileSystem {
 
     final selected = items.first;
     logger.debug(
-      'Selected writable filesystem for $path: ${selected.mountPath} '
-      '(priority: ${selected.priority})',
+      '选择可写文件系统',
+      metadata: {
+        'path': path.toString(),
+        'selected_mount_path': selected.mountPath.toString(),
+        'priority': selected.priority,
+        'operation': 'selected_writable_filesystem',
+      },
     );
     return selected;
   }
@@ -142,20 +196,36 @@ class UnionFileSystem extends IFileSystem {
   }) async {
     final logger = context.logger;
     logger.info(
-      'Copying from $source to $destination (overwrite: ${options.overwrite}, '
-      'recursive: ${options.recursive})',
+      '复制文件',
+      metadata: {
+        'source': source.toString(),
+        'destination': destination.toString(),
+        'overwrite': options.overwrite,
+        'recursive': options.recursive,
+        'operation': 'copy_file',
+      },
     );
 
     final sourceItem = await _getFirstReadableItemAsync(context, source);
     final destItem = _getFirstWritableItem(context, destination);
 
     if (sourceItem == null) {
-      logger.warning('Copy failed: source not found: $source');
+      logger.warning(
+        '复制失败：源文件未找到',
+        metadata: {
+          'source': source.toString(),
+          'operation': 'copy_failed_source_not_found',
+        },
+      );
       throw FileSystemException.notFound(source);
     }
     if (destItem == null) {
       logger.warning(
-        'Copy failed: no writable filesystem for destination: $destination',
+        '复制失败：目标位置无可写文件系统',
+        metadata: {
+          'destination': destination.toString(),
+          'operation': 'copy_failed_no_writable_destination',
+        },
       );
       throw FileSystemException.readOnly(destination);
     }
@@ -174,7 +244,11 @@ class UnionFileSystem extends IFileSystem {
     // 如果源和目标在同一个文件系统中，直接拷贝
     if (sourceItem == destItem) {
       logger.debug(
-        'Direct copy within same filesystem: ${sourceItem.mountPath}',
+        '同文件系统内直接复制',
+        metadata: {
+          'mount_path': sourceItem.mountPath.toString(),
+          'operation': 'direct_copy_same_filesystem',
+        },
       );
       return sourceItem.fileSystem.copy(
         context,
@@ -185,7 +259,12 @@ class UnionFileSystem extends IFileSystem {
     }
 
     logger.debug(
-      'Cross-filesystem copy: ${sourceItem.mountPath} -> ${destItem.mountPath}',
+      '跨文件系统复制',
+      metadata: {
+        'source_mount': sourceItem.mountPath.toString(),
+        'dest_mount': destItem.mountPath.toString(),
+        'operation': 'cross_filesystem_copy',
+      },
     );
 
     // 否则通过读写实现跨文件系统拷贝
@@ -194,17 +273,32 @@ class UnionFileSystem extends IFileSystem {
       sourceInternalPath,
     );
     if (sourceStatus == null) {
-      logger.warning('Copy failed: source status not found: $source');
+      logger.warning(
+        '复制失败：源文件状态未找到',
+        metadata: {
+          'source': source.toString(),
+          'operation': 'copy_failed_source_status_not_found',
+        },
+      );
       throw FileSystemException.notFound(source);
     }
 
     if (sourceStatus.isDirectory) {
-      logger.debug('Copying directory: $source');
+      logger.debug(
+        '复制目录',
+        metadata: {'source': source.toString(), 'operation': 'copy_directory'},
+      );
       // 拷贝目录
       await destItem.fileSystem.createDirectory(context, destInternalPath);
 
       if (options.recursive) {
-        logger.debug('Recursively copying directory contents');
+        logger.debug(
+          '递归复制目录内容',
+          metadata: {
+            'source': source.toString(),
+            'operation': 'recursive_copy_directory_contents',
+          },
+        );
         await for (final item in sourceItem.fileSystem.list(
           context,
           sourceInternalPath,
@@ -224,7 +318,14 @@ class UnionFileSystem extends IFileSystem {
         }
       }
     } else {
-      logger.debug('Copying file: $source (size: ${sourceStatus.size} bytes)');
+      logger.debug(
+        '复制文件',
+        metadata: {
+          'source': source.toString(),
+          'size_bytes': sourceStatus.size,
+          'operation': 'copy_file',
+        },
+      );
       // 拷贝文件
       final data = await sourceItem.fileSystem.readAsBytes(
         context,
@@ -240,7 +341,14 @@ class UnionFileSystem extends IFileSystem {
       );
     }
 
-    logger.info('Copy completed: $source -> $destination');
+    logger.info(
+      '复制完成',
+      metadata: {
+        'source': source.toString(),
+        'destination': destination.toString(),
+        'operation': 'copy_completed',
+      },
+    );
   }
 
   @override
@@ -251,20 +359,34 @@ class UnionFileSystem extends IFileSystem {
   }) async {
     final logger = context.logger;
     logger.info(
-      'Creating directory: $path (createParents: ${options.createParents})',
+      '创建目录',
+      metadata: {
+        'path': path.toString(),
+        'create_parents': options.createParents,
+        'operation': 'create_directory',
+      },
     );
 
     final item = _getFirstWritableItem(context, path);
     if (item == null) {
       logger.warning(
-        'Create directory failed: no writable filesystem for path: $path',
+        '创建目录失败：无可写文件系统',
+        metadata: {
+          'path': path.toString(),
+          'operation': 'create_directory_failed_no_writable_filesystem',
+        },
       );
       throw FileSystemException.readOnly(path);
     }
 
     final internalPath = _convertPath(context, path, item.mountPath);
     logger.debug(
-      'Creating directory in filesystem ${item.mountPath}: $internalPath',
+      '在文件系统中创建目录',
+      metadata: {
+        'mount_path': item.mountPath.toString(),
+        'internal_path': internalPath.toString(),
+        'operation': 'create_directory_in_filesystem',
+      },
     );
 
     await item.fileSystem.createDirectory(
@@ -272,7 +394,13 @@ class UnionFileSystem extends IFileSystem {
       internalPath,
       options: options,
     );
-    logger.info('Directory created successfully: $path');
+    logger.info(
+      '目录创建成功',
+      metadata: {
+        'path': path.toString(),
+        'operation': 'directory_created_successfully',
+      },
+    );
   }
 
   @override
@@ -282,7 +410,14 @@ class UnionFileSystem extends IFileSystem {
     DeleteOptions options = const DeleteOptions(),
   }) async {
     final logger = context.logger;
-    logger.info('Deleting: $path (recursive: ${options.recursive})');
+    logger.info(
+      '删除文件',
+      metadata: {
+        'path': path.toString(),
+        'recursive': options.recursive,
+        'operation': 'delete_file',
+      },
+    );
 
     final items = _getItemsForPath(
       context,
@@ -290,7 +425,13 @@ class UnionFileSystem extends IFileSystem {
     ).where((item) => !item.readOnly).toList();
 
     if (items.isEmpty) {
-      logger.warning('Delete failed: no writable filesystem for path: $path');
+      logger.warning(
+        '删除失败：无可写文件系统',
+        metadata: {
+          'path': path.toString(),
+          'operation': 'delete_failed_no_writable_filesystem',
+        },
+      );
       throw FileSystemException.readOnly(path);
     }
 
@@ -305,24 +446,42 @@ class UnionFileSystem extends IFileSystem {
       try {
         if (await item.fileSystem.exists(context, internalPath)) {
           logger.debug(
-            'Deleting from filesystem ${item.mountPath}: $internalPath',
+            '从文件系统中删除',
+            metadata: {
+              'mount_path': item.mountPath.toString(),
+              'internal_path': internalPath.toString(),
+              'operation': 'delete_from_filesystem',
+            },
           );
           await item.fileSystem.delete(context, internalPath, options: options);
           deleted = true;
           logger.debug(
-            'Successfully deleted from filesystem: ${item.mountPath}',
+            '从文件系统删除成功',
+            metadata: {
+              'mount_path': item.mountPath.toString(),
+              'operation': 'delete_from_filesystem_success',
+            },
           );
         } else {
           logger.trace(
-            'Path does not exist in filesystem '
-            '${item.mountPath}: $internalPath',
+            '文件系统中路径不存在',
+            metadata: {
+              'mount_path': item.mountPath.toString(),
+              'internal_path': internalPath.toString(),
+              'operation': 'path_not_exist_in_filesystem',
+            },
           );
         }
       } catch (e) {
         // 忽略删除错误，继续尝试其他文件系统
         logger.warning(
-          'Failed to delete $internalPath from '
-          'filesystem ${item.mountPath}: $e',
+          '从文件系统删除失败',
+          metadata: {
+            'mount_path': item.mountPath.toString(),
+            'internal_path': internalPath.toString(),
+            'error': e.toString(),
+            'operation': 'delete_from_filesystem_failed',
+          },
         );
         continue;
       }
@@ -330,13 +489,20 @@ class UnionFileSystem extends IFileSystem {
 
     if (!deleted) {
       logger.warning(
-        'Delete failed: path not found in any filesystem: $path '
-        '(attempted $attemptCount filesystems)',
+        '删除失败：在任何文件系统中都未找到路径',
+        metadata: {
+          'path': path.toString(),
+          'attempted_filesystems': attemptCount,
+          'operation': 'delete_failed_path_not_found',
+        },
       );
       throw FileSystemException.notFound(path);
     }
 
-    logger.info('Delete completed: $path');
+    logger.info(
+      '删除完成',
+      metadata: {'path': path.toString(), 'operation': 'delete_completed'},
+    );
   }
 
   @override
@@ -366,7 +532,10 @@ class UnionFileSystem extends IFileSystem {
       );
 
       if (hasChildMounts) {
-        logger.debug('Root directory exists due to child mount points');
+        logger.debug(
+          '根目录因子挂载点而存在',
+          metadata: {'operation': 'root_directory_exists_due_to_child_mounts'},
+        );
         return true;
       }
 
@@ -464,7 +633,14 @@ class UnionFileSystem extends IFileSystem {
         }
       } catch (e) {
         // 忽略单个文件系统的列表错误
-        logger.warning('Failed to list $internalPath: $e');
+        logger.warning(
+          '目录列表失败',
+          metadata: {
+            'internal_path': internalPath.toString(),
+            'error': e.toString(),
+            'operation': 'list_directory_failed',
+          },
+        );
         continue;
       }
     }
@@ -479,25 +655,47 @@ class UnionFileSystem extends IFileSystem {
   }) async {
     final logger = context.logger;
     logger.info(
-      'Moving from $source to $destination (overwrite: ${options.overwrite}, '
-      'recursive: ${options.recursive})',
+      '移动文件',
+      metadata: {
+        'source': source.toString(),
+        'destination': destination.toString(),
+        'overwrite': options.overwrite,
+        'recursive': options.recursive,
+        'operation': 'move_file',
+      },
     );
 
     final sourceItem = await _getFirstReadableItemAsync(context, source);
     final destItem = _getFirstWritableItem(context, destination);
 
     if (sourceItem == null) {
-      logger.warning('Move failed: source not found: $source');
+      logger.warning(
+        '移动失败：源文件未找到',
+        metadata: {
+          'source': source.toString(),
+          'operation': 'move_failed_source_not_found',
+        },
+      );
       throw FileSystemException.notFound(source);
     }
     if (destItem == null) {
       logger.warning(
-        'Move failed: no writable filesystem for destination: $destination',
+        '移动失败：目标位置无可写文件系统',
+        metadata: {
+          'destination': destination.toString(),
+          'operation': 'move_failed_no_writable_destination',
+        },
       );
       throw FileSystemException.readOnly(destination);
     }
     if (sourceItem.readOnly) {
-      logger.warning('Move failed: source filesystem is read-only: $source');
+      logger.warning(
+        '移动失败：源文件系统为只读',
+        metadata: {
+          'source': source.toString(),
+          'operation': 'move_failed_source_readonly',
+        },
+      );
       throw FileSystemException.readOnly(source);
     }
 
@@ -515,7 +713,11 @@ class UnionFileSystem extends IFileSystem {
     // 如果源和目标在同一个文件系统中，直接移动
     if (sourceItem == destItem) {
       logger.debug(
-        'Direct move within same filesystem: ${sourceItem.mountPath}',
+        '同文件系统内直接移动',
+        metadata: {
+          'mount_path': sourceItem.mountPath.toString(),
+          'operation': 'direct_move_same_filesystem',
+        },
       );
       await sourceItem.fileSystem.move(
         context,
@@ -525,8 +727,12 @@ class UnionFileSystem extends IFileSystem {
       );
     } else {
       logger.debug(
-        'Cross-filesystem move: '
-        '${sourceItem.mountPath} -> ${destItem.mountPath}',
+        '跨文件系统移动',
+        metadata: {
+          'source_mount': sourceItem.mountPath.toString(),
+          'dest_mount': destItem.mountPath.toString(),
+          'operation': 'cross_filesystem_move',
+        },
       );
 
       // 否则通过拷贝+删除实现跨文件系统移动
@@ -547,7 +753,14 @@ class UnionFileSystem extends IFileSystem {
       );
     }
 
-    logger.info('Move completed: $source -> $destination');
+    logger.info(
+      '移动完成',
+      metadata: {
+        'source': source.toString(),
+        'destination': destination.toString(),
+        'operation': 'move_completed',
+      },
+    );
   }
 
   @override
@@ -558,19 +771,37 @@ class UnionFileSystem extends IFileSystem {
   }) async* {
     final logger = context.logger;
     logger.debug(
-      'Opening read stream for: '
-      '$path (start: ${options.start}, end: ${options.end})',
+      '打开读取流',
+      metadata: {
+        'path': path.toString(),
+        'start': options.start,
+        'end': options.end,
+        'operation': 'open_read_stream',
+      },
     );
 
     final item = await _getFirstReadableItemAsync(context, path);
     if (item == null) {
-      logger.warning('Open read failed: file not found: $path');
+      logger.warning(
+        '打开读取失败：文件未找到',
+        metadata: {
+          'path': path.toString(),
+          'operation': 'open_read_failed_file_not_found',
+        },
+      );
       yield* Stream.error(FileSystemException.notFound(path));
       return;
     }
 
     final internalPath = _convertPath(context, path, item.mountPath);
-    logger.debug('Reading from filesystem ${item.mountPath}: $internalPath');
+    logger.debug(
+      '从文件系统读取',
+      metadata: {
+        'mount_path': item.mountPath.toString(),
+        'internal_path': internalPath.toString(),
+        'operation': 'read_from_filesystem',
+      },
+    );
 
     yield* item.fileSystem.openRead(context, internalPath, options: options);
   }
@@ -582,16 +813,36 @@ class UnionFileSystem extends IFileSystem {
     WriteOptions options = const WriteOptions(),
   }) async {
     final logger = context.logger;
-    logger.debug('Opening write stream for: $path (mode: ${options.mode})');
+    logger.debug(
+      '打开写入流',
+      metadata: {
+        'path': path.toString(),
+        'mode': options.mode.toString(),
+        'operation': 'open_write_stream',
+      },
+    );
 
     final item = _getFirstWritableItem(context, path);
     if (item == null) {
-      logger.warning('Open write failed: no writable filesystem for: $path');
+      logger.warning(
+        '打开写入失败：无可写文件系统',
+        metadata: {
+          'path': path.toString(),
+          'operation': 'open_write_failed_no_writable_filesystem',
+        },
+      );
       throw FileSystemException.readOnly(path);
     }
 
     final internalPath = _convertPath(context, path, item.mountPath);
-    logger.debug('Writing to filesystem ${item.mountPath}: $internalPath');
+    logger.debug(
+      '写入到文件系统',
+      metadata: {
+        'mount_path': item.mountPath.toString(),
+        'internal_path': internalPath.toString(),
+        'operation': 'write_to_filesystem',
+      },
+    );
 
     return item.fileSystem.openWrite(context, internalPath, options: options);
   }
@@ -604,18 +855,35 @@ class UnionFileSystem extends IFileSystem {
   }) async {
     final logger = context.logger;
     logger.debug(
-      'Reading bytes for: $path (start: ${options.start}, end: ${options.end})',
+      '读取字节数据',
+      metadata: {
+        'path': path.toString(),
+        'start': options.start,
+        'end': options.end,
+        'operation': 'read_as_bytes',
+      },
     );
 
     final item = await _getFirstReadableItemAsync(context, path);
     if (item == null) {
-      logger.warning('Read bytes failed: file not found: $path');
+      logger.warning(
+        '读取字节失败：文件未找到',
+        metadata: {
+          'path': path.toString(),
+          'operation': 'read_bytes_failed_file_not_found',
+        },
+      );
       throw FileSystemException.notFound(path);
     }
 
     final internalPath = _convertPath(context, path, item.mountPath);
     logger.debug(
-      'Reading bytes from filesystem ${item.mountPath}: $internalPath',
+      '从文件系统读取字节',
+      metadata: {
+        'mount_path': item.mountPath.toString(),
+        'internal_path': internalPath.toString(),
+        'operation': 'read_bytes_from_filesystem',
+      },
     );
 
     final data = await item.fileSystem.readAsBytes(
@@ -623,7 +891,14 @@ class UnionFileSystem extends IFileSystem {
       internalPath,
       options: options,
     );
-    logger.debug('Read ${data.length} bytes from: $path');
+    logger.debug(
+      '读取字节完成',
+      metadata: {
+        'path': path.toString(),
+        'bytes_read': data.length,
+        'operation': 'read_bytes_completed',
+      },
+    );
     return data;
   }
 
@@ -664,7 +939,10 @@ class UnionFileSystem extends IFileSystem {
       );
 
       if (hasChildMounts) {
-        logger.debug('Returning virtual root directory status');
+        logger.debug(
+          '返回虚拟根目录状态',
+          metadata: {'operation': 'return_virtual_root_directory_status'},
+        );
         return FileStatus(
           path: path,
           isDirectory: true,
@@ -710,18 +988,35 @@ class UnionFileSystem extends IFileSystem {
   }) async {
     final logger = context.logger;
     logger.debug(
-      'Writing ${data.length} bytes to: $path (mode: ${options.mode})',
+      '写入字节数据',
+      metadata: {
+        'path': path.toString(),
+        'data_length': data.length,
+        'mode': options.mode.toString(),
+        'operation': 'write_bytes',
+      },
     );
 
     final item = _getFirstWritableItem(context, path);
     if (item == null) {
-      logger.warning('Write bytes failed: no writable filesystem for: $path');
+      logger.warning(
+        '写入字节失败：无可写文件系统',
+        metadata: {
+          'path': path.toString(),
+          'operation': 'write_bytes_failed_no_writable_filesystem',
+        },
+      );
       throw FileSystemException.readOnly(path);
     }
 
     final internalPath = _convertPath(context, path, item.mountPath);
     logger.debug(
-      'Writing bytes to filesystem ${item.mountPath}: $internalPath',
+      '写入字节到文件系统',
+      metadata: {
+        'mount_path': item.mountPath.toString(),
+        'internal_path': internalPath.toString(),
+        'operation': 'write_bytes_to_filesystem',
+      },
     );
 
     await item.fileSystem.writeBytes(
@@ -730,6 +1025,13 @@ class UnionFileSystem extends IFileSystem {
       data,
       options: options,
     );
-    logger.debug('Successfully wrote ${data.length} bytes to: $path');
+    logger.debug(
+      '字节写入成功',
+      metadata: {
+        'path': path.toString(),
+        'bytes_written': data.length,
+        'operation': 'write_bytes_success',
+      },
+    );
   }
 }

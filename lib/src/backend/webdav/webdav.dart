@@ -103,7 +103,10 @@ class WebDAVFileSystem extends IFileSystem with FileSystemHelper {
   ) async {
     final logger = context.logger;
     try {
-      logger.debug('Starting streaming PUT request for: $path');
+      logger.debug(
+        '开始流式PUT请求',
+        metadata: {'path': path.toString(), 'operation': 'start_put_request'},
+      );
 
       // 使用流式PUT请求
       final resp = await webdavDio.putStream(
@@ -113,33 +116,68 @@ class WebDAVFileSystem extends IFileSystem with FileSystemHelper {
       );
 
       logger.debug(
-        'PUT request completed for: $path, status: ${resp.statusCode}',
+        'PUT请求完成',
+        metadata: {
+          'path': path.toString(),
+          'status_code': resp.statusCode,
+          'operation': 'put_request_completed',
+        },
       );
 
       // 检查响应状态
       if (resp.statusCode == 201 ||
           resp.statusCode == 204 ||
           resp.statusCode == 200) {
-        logger.debug('File written successfully: $path');
+        logger.debug(
+          '文件写入成功',
+          metadata: {
+            'path': path.toString(),
+            'status_code': resp.statusCode,
+            'operation': 'file_write_success',
+          },
+        );
         completer.complete();
       } else if (resp.statusCode == 403) {
-        logger.warning('Permission denied writing file: $path');
+        logger.warning(
+          '文件写入权限被拒绝',
+          metadata: {
+            'path': path.toString(),
+            'status_code': resp.statusCode,
+            'operation': 'file_write_permission_denied',
+          },
+        );
         completer.completeError(FileSystemException.permissionDenied(path));
       } else if (resp.statusCode == 409) {
-        logger.warning('Parent directory not found for: $path');
+        logger.warning(
+          '父目录不存在',
+          metadata: {
+            'path': path.toString(),
+            'status_code': resp.statusCode,
+            'operation': 'parent_directory_not_found',
+          },
+        );
         completer.completeError(FileSystemException.notFound(path));
       } else {
         final errorMessage = resp.statusMessage ?? 'Failed to write file';
-        logger.warning('Failed to write file: $path, error: $errorMessage');
+        logger.warning(
+          '文件写入失败',
+          metadata: {
+            'path': path.toString(),
+            'status_code': resp.statusCode,
+            'error_message': errorMessage,
+            'operation': 'file_write_failed',
+          },
+        );
         completer.completeError(
           FileSystemException.ioError(path, errorMessage),
         );
       }
     } catch (e, stackTrace) {
       logger.error(
-        'Error during PUT request for: $path',
+        'PUT请求过程中发生错误',
         error: e,
         stackTrace: stackTrace,
+        metadata: {'path': path.toString(), 'operation': 'put_request_error'},
       );
       completer.completeError(e);
     }
@@ -210,7 +248,14 @@ class WebDAVFileSystem extends IFileSystem with FileSystemHelper {
           throw FileSystemException.notADirectory(parentPath);
         } else {
           // 父目录存在且是目录
-          logger.debug('Parent directory exists: $parentPath');
+          logger.debug(
+            '父目录存在',
+            metadata: {
+              'parent_path': parentPath.toString(),
+              'path': path.toString(),
+              'operation': 'parent_directory_exists',
+            },
+          );
         }
       }
     }
