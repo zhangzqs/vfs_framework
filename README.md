@@ -23,10 +23,10 @@ VFS Framework 是一个受 [rclone](https://rclone.org/) 和 [Alist](https://ali
 - **AliasFileSystem** - Alias 文件系统（用于将某个文件系统的子目录映射成一个新的文件系统）
 - **BlockCacheFileSystem** - 块缓存文件系统（用于分块缓存文件内容，提升访问速度）
 - **MetadataCacheFileSystem** - 元数据缓存文件系统（用于缓存文件元数据，减少文件系统后端请求）
+- **WebDAVFileSystem** - WebDAV 文件系统（支持 WebDAV 协议的文件访问）
 
 ### 计划支持
 
-- WebDAV
 - SMB
 - S3 兼容存储
 
@@ -35,13 +35,25 @@ VFS Framework 是一个受 [rclone](https://rclone.org/) 和 [Alist](https://ali
 ### HTTP 服务器
 
 - **HTTP 服务器** - RESTful API 和 Web 界面
+
   - 文件浏览和下载
   - 目录列表
   - 中文文件名支持
 
-### 计划中的前端
+- **WebDAV 服务器** - 支持 WebDAV 协议的文件访问
+  - 文件上传和下载
+  - 目录创建和删除
+  - 文件重命名和移动
 
-- WebDAV 服务器
+## 其他组件
+
+### 结构化日志框架
+
+VFS Framework 提供了一个支持结构化的日志框架，支持多种日志输出方式，包含 console 和 text 格式，支持输出到文件和控制台，其中输出到文件支持日志滚动和切分。
+
+### 组件图自动导出渲染
+
+蓝图编排引擎中包含一个内建组件，用于分析导出所有的组件间的依赖关系，自动生成 puml 组件图和对应的 SVG 文件。
 
 ## ⚙️ 蓝图编排引擎
 
