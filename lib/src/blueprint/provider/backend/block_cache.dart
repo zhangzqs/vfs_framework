@@ -1,7 +1,6 @@
 import 'package:json_annotation/json_annotation.dart';
 
 import '../../../../vfs_framework.dart';
-import '../../index.dart';
 
 part 'block_cache.g.dart';
 
