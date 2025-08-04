@@ -101,7 +101,7 @@ class _FileManagerWidgetState extends State<FileManagerWidget> {
     }
   }
 
-  Future<void> _uploadFile(Uint8List data, String fileName) async {
+  Future<void> uploadFile(Uint8List data, String fileName) async {
     try {
       final filePath = _workingDir.join(fileName);
       await widget.fileSystem.writeBytes(
@@ -186,7 +186,7 @@ class _FileManagerWidgetState extends State<FileManagerWidget> {
   }
 
   // 执行复制或移动操作
-  void _executeOperation(Path destinationPath) {
+  void executeOperation(Path destinationPath) {
     if (_selectedItemForOperation == null || _operationType == null) return;
 
     final sourcePath = _selectedItemForOperation!.path;
