@@ -316,6 +316,14 @@ class CacheOperation {
   final Map<String, Set<int>> _activeReadAheadTasks = {}; // 记录正在进行的预读任务
   final Map<String, int> _lastAccessedBlock = {}; // 记录每个文件最后访问的块索引
 
+  // 性能优化缓存
+  final Map<String, FileStatus> _fileStatCache = {}; // 文件状态缓存
+  final Map<String, CacheMetadata> _metadataCache = {}; // 元数据缓存
+  final Map<String, bool> _integrityCache = {}; // 完整性验证缓存
+  final Map<String, DateTime> _cacheTimestamps = {}; // 缓存时间戳
+
+  static const Duration _cacheValidDuration = Duration(seconds: 30); // 缓存有效期
+
   /// 实现块缓存的读取
   Stream<List<int>> openReadWithBlockCache(
     Context context,
@@ -425,7 +433,7 @@ class CacheOperation {
     );
   }
 
-  /// 获取指定块的数据（带缓存和预读）
+  /// 获取指定块的数据（带缓存和预读）- 性能优化版本
   Future<Uint8List> _getBlockData(
     Context context,
     int blockIdx,
@@ -436,8 +444,8 @@ class CacheOperation {
     try {
       // 首先检查缓存是否存在
       if (await _cacheDirOp.blockExists(context, path, blockIdx)) {
-        // 验证缓存完整性和hash冲突
-        if (await _validateCacheIntegrity(context, path)) {
+        // 使用缓存的完整性验证结果，避免重复验证
+        if (await _validateCacheIntegrityWithCache(context, path)) {
           final cachedData = await _cacheDirOp.readBlock(
             context,
             path,
@@ -497,7 +505,7 @@ class CacheOperation {
     }
   }
 
-  /// 从原始文件系统读取指定块
+  /// 从原始文件系统读取指定块（优化版本）
   Future<Uint8List> _readBlockFromOrigin(
     Context context,
     Path path,
@@ -507,8 +515,8 @@ class CacheOperation {
 
     final blockStart = blockIdx * blockSize;
 
-    // 获取文件大小以确保不会读取超出文件末尾的数据
-    final fileStatus = await originFileSystem.stat(context, path);
+    // 获取文件大小以确保不会读取超出文件末尾的数据（使用缓存）
+    final fileStatus = await _getFileStatWithCache(context, path);
     final fileSize = fileStatus?.size ?? 0;
 
     // 如果块的起始位置已经超出文件大小，返回空数据
@@ -580,39 +588,93 @@ class CacheOperation {
     });
   }
 
-  /// 验证缓存完整性，防止hash冲突
-  Future<bool> _validateCacheIntegrity(Context context, Path path) async {
+  /// 检查缓存是否有效（避免重复检查）
+  bool _isCacheValid(String pathString) {
+    final timestamp = _cacheTimestamps[pathString];
+    if (timestamp == null) return false;
+    return DateTime.now().difference(timestamp) < _cacheValidDuration;
+  }
+
+  /// 获取缓存的文件状态信息
+  Future<FileStatus?> _getFileStatWithCache(Context context, Path path) async {
+    final pathString = path.toString();
+
+    // 检查缓存是否有效
+    if (_isCacheValid(pathString) && _fileStatCache.containsKey(pathString)) {
+      return _fileStatCache[pathString];
+    }
+
+    // 缓存无效或不存在，重新获取
+    final stat = await originFileSystem.stat(context, path);
+    if (stat != null) {
+      _fileStatCache[pathString] = stat;
+      _cacheTimestamps[pathString] = DateTime.now();
+    }
+    return stat;
+  }
+
+  /// 验证缓存完整性（带缓存优化）- 避免重复验证
+  Future<bool> _validateCacheIntegrityWithCache(
+    Context context,
+    Path path,
+  ) async {
     final logger = context.logger;
+    final pathString = path.toString();
+
+    // 检查是否已经验证过且仍然有效
+    if (_isCacheValid(pathString) && _integrityCache.containsKey(pathString)) {
+      final cachedResult = _integrityCache[pathString]!;
+      logger.trace(
+        '使用缓存的完整性验证结果',
+        metadata: {'path': pathString, 'cached_result': cachedResult},
+      );
+      return cachedResult;
+    }
 
     try {
-      final metadata = await _cacheDirOp.readMetadata(context, path);
+      // 读取缓存的元数据
+      CacheMetadata? metadata;
+      if (_isCacheValid(pathString) && _metadataCache.containsKey(pathString)) {
+        metadata = _metadataCache[pathString];
+      } else {
+        metadata = await _cacheDirOp.readMetadata(context, path);
+        if (metadata != null) {
+          _metadataCache[pathString] = metadata;
+        }
+      }
+
       if (metadata == null) {
-        logger.trace(
-          '未找到缓存元数据文件',
-          metadata: {'original_path': path.toString()},
-        );
+        logger.trace('未找到缓存元数据文件', metadata: {'original_path': pathString});
+        _integrityCache[pathString] = false;
+        _cacheTimestamps[pathString] = DateTime.now();
         return false;
       }
 
-      // 获取原文件的状态信息进行验证
-      final originalStat = await originFileSystem.stat(context, path);
+      // 获取原文件的状态信息（使用缓存）
+      final originalStat = await _getFileStatWithCache(context, path);
       if (originalStat == null) {
-        logger.warning('原文件不存在', metadata: {'original_path': path.toString()});
-        return false; // 原文件不存在
+        logger.warning('原文件不存在', metadata: {'original_path': pathString});
+        _integrityCache[pathString] = false;
+        _cacheTimestamps[pathString] = DateTime.now();
+        return false;
       }
 
       // 使用CacheMetadata的isValid方法进行验证
       final isValid = metadata.isValid(
-        expectedPath: path.toString(),
+        expectedPath: pathString,
         expectedFileSize: originalStat.size ?? 0,
         expectedBlockSize: blockSize,
       );
+
+      // 缓存验证结果
+      _integrityCache[pathString] = isValid;
+      _cacheTimestamps[pathString] = DateTime.now();
 
       if (!isValid) {
         logger.warning(
           '缓存元数据验证失败',
           metadata: {
-            'path': path.toString(),
+            'path': pathString,
             'cache_metadata': metadata.toJson(),
             'expected_file_size': originalStat.size ?? 0,
             'expected_block_size': blockSize,
@@ -623,30 +685,33 @@ class CacheOperation {
 
       logger.trace(
         '缓存验证通过',
-        metadata: {'path': path.toString(), 'cache_stats': metadata.cacheStats},
+        metadata: {'path': pathString, 'cache_stats': metadata.cacheStats},
       );
       return true;
     } catch (e) {
       logger.warning('缓存完整性验证失败', error: e);
+      _integrityCache[pathString] = false;
+      _cacheTimestamps[pathString] = DateTime.now();
       return false;
     }
   }
 
-  /// 更新缓存元数据
+  /// 更新缓存元数据（批量优化版本）
   Future<void> _updateCacheMetadata(
     Context context,
     Path path,
     int blockIdx,
   ) async {
     final logger = context.logger;
+    final pathString = path.toString();
 
     try {
-      // 获取原文件信息
-      final originalStat = await originFileSystem.stat(context, path);
+      // 获取原文件信息（使用缓存）
+      final originalStat = await _getFileStatWithCache(context, path);
       if (originalStat == null) {
         logger.warning(
           '无法获取原文件状态信息用于元数据更新',
-          metadata: {'original_path': path.toString()},
+          metadata: {'original_path': pathString},
         );
         return;
       }
@@ -656,21 +721,30 @@ class CacheOperation {
 
       CacheMetadata metadata;
 
-      // 如果元数据文件已存在，先读取现有数据
-      final existingMetadata = await _cacheDirOp.readMetadata(context, path);
-      if (existingMetadata != null) {
-        metadata = existingMetadata.addCachedBlock(blockIdx);
+      // 优先使用内存中的元数据缓存
+      if (_isCacheValid(pathString) && _metadataCache.containsKey(pathString)) {
+        metadata = _metadataCache[pathString]!.addCachedBlock(blockIdx);
       } else {
-        // 创建新的元数据
-        metadata = CacheMetadata(
-          filePath: path.toString(),
-          fileSize: fileSize,
-          blockSize: blockSize,
-          totalBlocks: totalBlocks,
-          cachedBlocks: {blockIdx},
-          lastModified: DateTime.now(),
-        );
+        // 如果缓存中没有，再从磁盘读取
+        final existingMetadata = await _cacheDirOp.readMetadata(context, path);
+        if (existingMetadata != null) {
+          metadata = existingMetadata.addCachedBlock(blockIdx);
+        } else {
+          // 创建新的元数据
+          metadata = CacheMetadata(
+            filePath: pathString,
+            fileSize: fileSize,
+            blockSize: blockSize,
+            totalBlocks: totalBlocks,
+            cachedBlocks: {blockIdx},
+            lastModified: DateTime.now(),
+          );
+        }
       }
+
+      // 更新内存缓存
+      _metadataCache[pathString] = metadata;
+      _cacheTimestamps[pathString] = DateTime.now();
 
       // 写入元数据文件
       await _cacheDirOp._writeMetadata(context, path, metadata);
@@ -678,7 +752,7 @@ class CacheOperation {
       logger.trace(
         '缓存元数据更新成功',
         metadata: {
-          'path': path.toString(),
+          'path': pathString,
           'block_index': blockIdx,
           'cache_stats': metadata.cacheStats,
           'total_blocks': totalBlocks,
@@ -694,20 +768,48 @@ class CacheOperation {
   /// 使指定文件的缓存失效
   Future<void> invalidateCache(Context context, Path path) async {
     final logger = context.logger;
+    final pathString = path.toString();
 
     try {
-      logger.debug('使缓存失效', metadata: {'path': path.toString()});
+      logger.debug('使缓存失效', metadata: {'path': pathString});
 
       // 清理预读状态
       _cleanupReadAheadState(context, path);
 
+      // 清理内存缓存
+      _clearMemoryCache(pathString);
+
       // 删除缓存目录
       await _cacheDirOp.delete(context, path);
 
-      logger.debug('缓存失效成功', metadata: {'path': path.toString()});
+      logger.debug('缓存失效成功', metadata: {'path': pathString});
     } catch (e) {
-      logger.warning('缓存失效失败', error: e, metadata: {'path': path.toString()});
+      logger.warning('缓存失效失败', error: e, metadata: {'path': pathString});
       // 静默处理缓存清理错误，不影响主流程
+    }
+  }
+
+  /// 清理指定文件的内存缓存
+  void _clearMemoryCache(String pathString) {
+    _fileStatCache.remove(pathString);
+    _metadataCache.remove(pathString);
+    _integrityCache.remove(pathString);
+    _cacheTimestamps.remove(pathString);
+  }
+
+  /// 清理所有过期的内存缓存
+  void _cleanupExpiredCache() {
+    final now = DateTime.now();
+    final expiredKeys = <String>[];
+
+    for (final entry in _cacheTimestamps.entries) {
+      if (now.difference(entry.value) > _cacheValidDuration) {
+        expiredKeys.add(entry.key);
+      }
+    }
+
+    for (final key in expiredKeys) {
+      _clearMemoryCache(key);
     }
   }
 
@@ -760,14 +862,17 @@ class CacheOperation {
       final pathString = path.toString();
 
       try {
-        // 获取文件大小来确定有效的块范围
-        final fileStatus = await originFileSystem.stat(context, path);
+        // 获取文件大小来确定有效的块范围（使用缓存）
+        final fileStatus = await _getFileStatWithCache(context, path);
         if (fileStatus == null) {
           return;
         }
 
         final fileSize = fileStatus.size ?? 0;
         final maxBlockIdx = (fileSize + blockSize - 1) ~/ blockSize - 1;
+
+        // 定期清理过期缓存
+        _cleanupExpiredCache();
 
         // 初始化活跃任务集合
         _activeReadAheadTasks[pathString] ??= <int>{};
