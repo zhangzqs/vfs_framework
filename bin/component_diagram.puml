@@ -47,7 +47,7 @@ note top of block_cache_fs
   • originBackend: metadata_cache_fs
   • cacheBackend: local_fs_d
   • cacheDir: /block_cache
-  • blockSize: 4194304
+  • blockSize: 1048576
   • readAheadBlocks: 2
   • ... and 1 more
 end note
@@ -86,7 +86,7 @@ note top of app_logger
   **Type**: logger.logger
   --
   **Config**:
-  • level: debug
+  • level: info
   • format: json
   • localLogFile: {3 keys}
 end note
@@ -101,6 +101,7 @@ note top of webdav_server
   • requestLogger: request_logger
   • address: 0.0.0.0
   • port: 8052
+  • ... and 1 more
 end note
 
 component [component_diagram] as component_diagram

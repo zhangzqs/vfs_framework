@@ -29,9 +29,9 @@
     originBackend: metadata_cache_fs
     cacheBackend: local_fs_d
     cacheDir: "/block_cache"
-    blockSize: 4194304 # 4MB
+    blockSize: 1048576 # 1MB
     readAheadBlocks: 2 # Read ahead 2 blocks
-    enableReadAhead: true # Enable read-ahead caching
+    enableReadAhead: false # Enable read-ahead caching
 
 - name: union_fs
   type: backend.union
@@ -67,7 +67,7 @@
 - name: app_logger
   type: logger.logger
   config:
-    level: debug
+    level: info
     format: json
     localLogFile:
       logDir: "./app_logs"
@@ -82,6 +82,10 @@
     requestLogger: request_logger
     address: 0.0.0.0
     port: 8052
+    authConfig:
+      type: basic
+      credentials:
+        "zzq": "********"
 
 - name: component_diagram
   type: builtin.component_diagram_exporter

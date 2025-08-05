@@ -4,10 +4,39 @@ import 'package:json_annotation/json_annotation.dart';
 import 'package:vfs_framework/src/abstract/filesystem.dart';
 import 'package:vfs_framework/src/blueprint/engine/core.dart';
 import 'package:vfs_framework/src/frontend/index.dart';
+import 'package:vfs_framework/src/helper/webdav_auth_middleware.dart';
 
 import '../../../logger/index.dart';
 
 part 'webdav.g.dart';
+
+@JsonSerializable()
+class _AuthConfig {
+  _AuthConfig({this.type = AuthType.none, this.realm = '', this.credentials});
+  factory _AuthConfig.fromJson(Map<String, dynamic> json) =>
+      _$AuthConfigFromJson(json);
+  final AuthType type;
+  final String realm;
+  final Map<String, String>? credentials;
+  Map<String, dynamic> toJson() => _$AuthConfigToJson(this);
+
+  WebDAVAuthConfig build(BuildContext context) {
+    switch (type) {
+      case AuthType.none:
+        return WebDAVAuthConfig.none;
+      case AuthType.basic:
+        return WebDAVBasicAuthConfig(
+          realm: realm,
+          credentials: credentials ?? {},
+        );
+      default:
+        throw BlueprintException(
+          context: context,
+          'Unsupported WebDAV authentication type: $type',
+        );
+    }
+  }
+}
 
 @JsonSerializable()
 class _Config {
@@ -15,6 +44,7 @@ class _Config {
     required this.backend,
     this.logger,
     this.requestLogger,
+    this.authConfig,
     this.address = 'localhost',
     this.port = 8080,
   });
@@ -26,6 +56,7 @@ class _Config {
   final String backend;
   final String address;
   final int port;
+  final _AuthConfig? authConfig;
 
   Map<String, dynamic> toJson() => _$ConfigToJson(this);
 
@@ -46,6 +77,7 @@ class _Config {
       requestLogger: requestLogger == null
           ? null
           : ctx.mustGetComponentByName<Logger>(requestLogger!),
+      authConfig: authConfig?.build(ctx) ?? WebDAVAuthConfig.none,
     );
   }
 }
