@@ -81,7 +81,7 @@ linter:
     # 函数
     - prefer_function_declarations_over_variables # 优先使用函数声明
     - use_function_type_syntax_for_parameters # 函数参数使用函数类型语法
-    - avoid_positional_boolean_parameters # 避免位置布尔参数
+    # - avoid_positional_boolean_parameters # 避免位置布尔参数
     - avoid_bool_literals_in_conditional_expressions # 避免条件表达式中的布尔字面量
 
     # 异步
