@@ -16,6 +16,9 @@ class Context {
   bool get isCanceled => _cancelError != null;
   FileSystemException? get cancelError => _cancelError;
   FileSystemException? _cancelError;
+  void throwIfCanceled() {
+    if (_cancelError != null) throw _cancelError!;
+  }
 
   final Completer<FileSystemException> _completer =
       Completer<FileSystemException>();

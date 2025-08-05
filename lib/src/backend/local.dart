@@ -569,6 +569,7 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
       await for (final chunk in File(
         _toLocalPath(context, path),
       ).openRead(options.start, options.end)) {
+        context.throwIfCanceled();
         bytesRead += chunk.length;
         logger.trace(
           '读取数据块',
