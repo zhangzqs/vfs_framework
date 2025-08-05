@@ -7,22 +7,12 @@ import 'package:crypto/crypto.dart';
 import '../../abstract/index.dart';
 import 'model.dart';
 
-/// 元数据缓存操作类
-/// 负责具体的缓存读写、hash计算、目录管理等操作
-class MetadataCacheOperation {
-  MetadataCacheOperation({
-    required this.originFileSystem,
-    required this.cacheFileSystem,
-    required this.cacheDir,
-    this.maxCacheAge = const Duration(minutes: 30),
-    this.largeDirectoryThreshold = 1000,
-  });
+/// 缓存存储管理器，负责底层缓存文件的读写操作
+class _CacheStorageManager {
+  _CacheStorageManager({required this.cacheFileSystem, required this.cacheDir});
 
-  final IFileSystem originFileSystem;
   final IFileSystem cacheFileSystem;
   final Path cacheDir;
-  final Duration maxCacheAge;
-  final int largeDirectoryThreshold;
 
   /// 基于SHA256生成文件路径的hash值，16个字符
   String _generatePathHash(Context context, Path path) {
@@ -44,7 +34,7 @@ class MetadataCacheOperation {
     return hash;
   }
 
-  /// 在cacheDir中，针对srcPath构建分层缓存目录路径，三层目录结构，有利于文件系统查询性能
+  /// 构建缓存文件路径，三层目录结构，有利于文件系统查询性能
   Path _buildCacheMetadataFile(Context context, Path path) {
     final logger = context.logger;
     final hash = _generatePathHash(context, path);
@@ -72,11 +62,8 @@ class MetadataCacheOperation {
     return hierarchicalPath;
   }
 
-  /// 读取缓存的元数据
-  Future<MetadataCacheData?> _readCachedMetadata(
-    Context context,
-    Path path,
-  ) async {
+  /// 读取缓存文件
+  Future<MetadataCacheData?> readCache(Context context, Path path) async {
     final logger = context.logger;
     try {
       final cacheFilePath = _buildCacheMetadataFile(context, path);
@@ -99,33 +86,13 @@ class MetadataCacheOperation {
 
       final cacheData = MetadataCacheData.fromJson(json);
 
-      // 验证缓存是否仍然有效
-      if (!cacheData.isValid(
-        expectedPath: path.toString(),
-        maxAge: maxCacheAge,
-      )) {
-        logger.trace(
-          '缓存已过期',
-          metadata: {
-            'path': path.toString(),
-            'cache_path': cacheFilePath.toString(),
-            'last_updated': cacheData.lastUpdated.toIso8601String(),
-            'max_age_minutes': maxCacheAge.inMinutes,
-            'operation': 'cache_expired',
-          },
-        );
-        // 异步删除过期缓存
-        unawaited(_invalidateCache(context, path));
-        return null;
-      }
-
       logger.trace(
-        '缓存命中',
+        '缓存读取成功',
         metadata: {
           'path': path.toString(),
           'cache_stats': cacheData.cacheStats,
           'last_updated': cacheData.lastUpdated.toIso8601String(),
-          'operation': 'cache_hit',
+          'operation': 'cache_read_success',
         },
       );
       return cacheData;
@@ -140,8 +107,8 @@ class MetadataCacheOperation {
     }
   }
 
-  /// 写入缓存的元数据
-  Future<void> _writeCachedMetadata(
+  /// 写入缓存文件
+  Future<void> writeCache(
     Context context,
     Path path,
     MetadataCacheData metadata,
@@ -190,35 +157,121 @@ class MetadataCacheOperation {
     }
   }
 
-  /// 使缓存失效
-  Future<void> _invalidateCache(Context context, Path path) async {
+  /// 删除缓存文件
+  Future<void> deleteCache(Context context, Path path) async {
     final logger = context.logger;
     try {
       final cacheFilePath = _buildCacheMetadataFile(context, path);
       if (await cacheFileSystem.exists(context, cacheFilePath)) {
         await cacheFileSystem.delete(context, cacheFilePath);
         logger.trace(
-          '缓存失效成功',
+          '缓存删除成功',
           metadata: {
             'path': path.toString(),
             'cache_path': cacheFilePath.toString(),
-            'operation': 'cache_invalidated',
+            'operation': 'cache_deleted',
           },
         );
       }
     } catch (e, stackTrace) {
       logger.warning(
-        '缓存失效失败',
+        '缓存删除失败',
         error: e,
         stackTrace: stackTrace,
-        metadata: {
-          'path': path.toString(),
-          'operation': 'cache_invalidate_failed',
-        },
+        metadata: {'path': path.toString(), 'operation': 'cache_delete_failed'},
       );
       // 静默处理缓存删除错误
     }
   }
+}
+
+/// 缓存策略管理器，负责缓存有效性验证和失效策略
+class _CacheStrategyManager {
+  _CacheStrategyManager({
+    required this.maxCacheAge,
+    required this.storageManager,
+  });
+
+  final Duration maxCacheAge;
+  final _CacheStorageManager storageManager;
+
+  /// 验证缓存是否有效
+  bool isCacheValid(MetadataCacheData cacheData, String expectedPath) {
+    return cacheData.isValid(expectedPath: expectedPath, maxAge: maxCacheAge);
+  }
+
+  /// 获取有效的缓存数据
+  Future<MetadataCacheData?> getValidCache(Context context, Path path) async {
+    final logger = context.logger;
+    final cachedData = await storageManager.readCache(context, path);
+
+    if (cachedData == null) {
+      return null;
+    }
+
+    if (!isCacheValid(cachedData, path.toString())) {
+      logger.trace(
+        '缓存已过期',
+        metadata: {
+          'path': path.toString(),
+          'last_updated': cachedData.lastUpdated.toIso8601String(),
+          'max_age_minutes': maxCacheAge.inMinutes,
+          'operation': 'cache_expired',
+        },
+      );
+      // 异步删除过期缓存
+      unawaited(storageManager.deleteCache(context, path));
+      return null;
+    }
+
+    logger.trace(
+      '缓存命中',
+      metadata: {
+        'path': path.toString(),
+        'cache_stats': cachedData.cacheStats,
+        'last_updated': cachedData.lastUpdated.toIso8601String(),
+        'operation': 'cache_hit',
+      },
+    );
+    return cachedData;
+  }
+
+  /// 使缓存失效
+  Future<void> invalidateCache(Context context, Path path) async {
+    final logger = context.logger;
+    await storageManager.deleteCache(context, path);
+    logger.trace(
+      '缓存失效成功',
+      metadata: {'path': path.toString(), 'operation': 'cache_invalidated'},
+    );
+  }
+}
+
+/// 元数据缓存操作类
+/// 负责协调各个组件，提供统一的API
+class MetadataCacheOperation {
+  MetadataCacheOperation({
+    required this.originFileSystem,
+    required IFileSystem cacheFileSystem,
+    required Path cacheDir,
+    Duration maxCacheAge = const Duration(minutes: 30),
+    this.largeDirectoryThreshold = 1000,
+  }) {
+    _storageManager = _CacheStorageManager(
+      cacheFileSystem: cacheFileSystem,
+      cacheDir: cacheDir,
+    );
+    _cacheStrategy = _CacheStrategyManager(
+      maxCacheAge: maxCacheAge,
+      storageManager: _storageManager,
+    );
+  }
+
+  final IFileSystem originFileSystem;
+  final int largeDirectoryThreshold;
+
+  late final _CacheStorageManager _storageManager;
+  late final _CacheStrategyManager _cacheStrategy;
 
   /// 刷新路径的元数据缓存
   Future<MetadataCacheData?> _refreshMetadataCache(
@@ -229,7 +282,7 @@ class MetadataCacheOperation {
     try {
       final status = await originFileSystem.stat(context, path);
       if (status == null) {
-        await _invalidateCache(context, path);
+        await _cacheStrategy.invalidateCache(context, path);
         return null;
       }
 
@@ -283,7 +336,7 @@ class MetadataCacheOperation {
         }
       }
 
-      await _writeCachedMetadata(context, path, cacheData);
+      await _storageManager.writeCache(context, path, cacheData);
       return cacheData;
     } catch (e, stackTrace) {
       logger.warning(
@@ -296,7 +349,7 @@ class MetadataCacheOperation {
         },
       );
       // 刷新失败时删除缓存
-      await _invalidateCache(context, path);
+      await _cacheStrategy.invalidateCache(context, path);
       return null;
     }
   }
@@ -306,7 +359,7 @@ class MetadataCacheOperation {
     final logger = context.logger;
     try {
       // 首先尝试从缓存读取
-      final cachedData = await _readCachedMetadata(context, path);
+      final cachedData = await _cacheStrategy.getValidCache(context, path);
       if (cachedData != null) {
         return cachedData.stat;
       }
@@ -340,7 +393,7 @@ class MetadataCacheOperation {
     final logger = context.logger;
     try {
       // 首先尝试从缓存读取
-      final cachedData = await _readCachedMetadata(context, path);
+      final cachedData = await _cacheStrategy.getValidCache(context, path);
       if (cachedData != null && !cachedData.isLargeDirectory) {
         // 普通目录，从缓存读取子文件列表
         final children = cachedData.children;
@@ -403,7 +456,7 @@ class MetadataCacheOperation {
   }) async {
     if (isDelete) {
       // 删除操作：使文件自身的缓存失效
-      await _invalidateCache(context, path);
+      await _cacheStrategy.invalidateCache(context, path);
     } else {
       // 创建/修改操作：刷新文件自身的缓存
       await _refreshMetadataCache(context, path);
