@@ -58,19 +58,17 @@ class BlockCacheFileSystem extends IFileSystem with FileSystemHelper {
     int blockSize = 1024 * 1024, // 默认块大小为1MB
     int readAheadBlocks = 2, // 预读
     bool enableReadAhead = true, // 默认启用预读
-  }) {
-    _cacheOperation = CacheOperation(
-      originFileSystem: originFileSystem,
-      cacheFileSystem: cacheFileSystem,
-      cacheDir: cacheDir,
-      blockSize: blockSize,
-      readAheadBlocks: readAheadBlocks,
-      enableReadAhead: enableReadAhead,
-    );
-  }
+  }) : _cacheOperation = CacheManager(
+         originFileSystem: originFileSystem,
+         cacheFileSystem: cacheFileSystem,
+         cacheDir: cacheDir,
+         blockSize: blockSize,
+         readAheadBlocks: readAheadBlocks,
+         enableReadAhead: enableReadAhead,
+       );
 
   final IFileSystem originFileSystem;
-  late final CacheOperation _cacheOperation;
+  final CacheManager _cacheOperation;
 
   @override
   Future<void> copy(
