@@ -54,7 +54,12 @@ class _CacheAccessRecord {
 
   @override
   String toString() {
-    return 'CacheAccessRecord(path: $path, lastAccess: $lastAccess, accessCount: $accessCount)';
+    return {
+      'path': path,
+      'lastAccess': lastAccess.toIso8601String(),
+      'accessCount': accessCount,
+      'cacheFilePath': cacheFilePath,
+    }.toString();
   }
 }
 
