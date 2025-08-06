@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:vfs_framework/src/logger/index.dart';
+
 import '../../abstract/index.dart';
 import '../../helper/filesystem_helper.dart';
 import 'operation.dart';
@@ -12,6 +14,7 @@ class MetadataCacheFileSystem extends IFileSystem with FileSystemHelper {
     required Path cacheDir,
     Duration maxCacheAge = const Duration(days: 7),
     int largeDirectoryThreshold = 1000,
+    Logger? asyncTaskLogger,
   }) {
     _cacheOperation = MetadataCacheOperation(
       originFileSystem: originFileSystem,
@@ -20,6 +23,7 @@ class MetadataCacheFileSystem extends IFileSystem with FileSystemHelper {
       maxCacheAge: maxCacheAge,
       largeDirectoryThreshold: largeDirectoryThreshold,
     );
+    _cacheOperation.startLRUCleanup(asyncTaskLogger ?? Logger.defaultLogger);
   }
 
   final IFileSystem originFileSystem;
@@ -207,6 +211,12 @@ class MetadataCacheFileSystem extends IFileSystem with FileSystemHelper {
     await originFileSystem.writeBytes(context, path, data, options: options);
     // 写入完成后刷新缓存
     await _cacheOperation.handleFileSystemChange(context, path);
+  }
+
+  @override
+  Future<void> dispose(Context context) async {
+    // 关闭缓存操作
+    _cacheOperation.dispose();
   }
 }
 

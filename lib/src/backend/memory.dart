@@ -49,7 +49,9 @@ class _MemoryFileEntity {
   int get bufferSize => _writeBuffer?.length ?? 0;
 }
 
-class MemoryFileSystem extends IFileSystem with FileSystemHelper {
+class MemoryFileSystem extends IFileSystem
+    with FileSystemHelper
+    implements IQuotaFileSystem {
   MemoryFileSystem();
 
   final _rootDir = _MemoryFileEntity(
@@ -914,5 +916,55 @@ class MemoryFileSystem extends IFileSystem with FileSystemHelper {
         'operation': 'direct_copy_completed',
       },
     );
+  }
+
+  QuotaInfo? _cachedQuotaInfo;
+  DateTime? _quotaInfoLastUpdated;
+  @override
+  Future<QuotaInfo> getQuotaInfo(
+    Context context, {
+    Path? path,
+    GetQuotaOptions options = const GetQuotaOptions(),
+  }) async {
+    final logger = context.logger;
+    logger.debug(
+      '获取配额信息',
+      metadata: {
+        'path': path?.toString() ?? 'root',
+        'operation': 'get_quota_info',
+      },
+    );
+    // 如果缓存未过期，直接返回
+    if (_cachedQuotaInfo != null &&
+        _quotaInfoLastUpdated != null &&
+        DateTime.now().difference(_quotaInfoLastUpdated!) <
+            const Duration(minutes: 1)) {
+      logger.debug(
+        '使用缓存的配额信息',
+        metadata: {
+          'cached_entity_count': _cachedQuotaInfo!.entityCount,
+          'cached_total_size': _cachedQuotaInfo!.totalSize,
+          'operation': 'using_cached_quota_info',
+        },
+      );
+      return _cachedQuotaInfo!;
+    }
+    final totalEntities = _countEntities(_rootDir);
+    final memoryUsage = _calculateEntityMemoryUsage(_rootDir);
+
+    _cachedQuotaInfo = QuotaInfo(
+      entityCount: totalEntities,
+      totalSize: memoryUsage,
+    );
+    _quotaInfoLastUpdated = DateTime.now();
+    logger.debug(
+      '配额信息获取成功',
+      metadata: {
+        'entity_count': totalEntities,
+        'total_size': memoryUsage,
+        'operation': 'quota_info_retrieved',
+      },
+    );
+    return _cachedQuotaInfo!;
   }
 }

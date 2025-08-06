@@ -3,16 +3,299 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../abstract/index.dart';
+import '../../logger/index.dart';
 import 'model.dart';
+
+/// LRU缓存配置
+class LRUCacheConfig {
+  const LRUCacheConfig({
+    this.maxCacheSize = 10000,
+    this.cleanupInterval = const Duration(minutes: 5),
+    this.cleanupBatchSize = 100,
+    this.enabled = true,
+  });
+
+  /// 最大缓存条目数量
+  final int maxCacheSize;
+
+  /// 清理任务间隔
+  final Duration cleanupInterval;
+
+  /// 每次清理的批次大小
+  final int cleanupBatchSize;
+
+  /// 是否启用LRU机制
+  final bool enabled;
+
+  static const LRUCacheConfig disabled = LRUCacheConfig(enabled: false);
+}
+
+/// LRU缓存访问记录
+class _CacheAccessRecord {
+  _CacheAccessRecord({
+    required this.path,
+    required this.lastAccess,
+    required this.accessCount,
+    required this.cacheFilePath,
+  });
+
+  final String path;
+  DateTime lastAccess;
+  int accessCount;
+  final String cacheFilePath;
+
+  void recordAccess() {
+    lastAccess = DateTime.now();
+    accessCount++;
+  }
+
+  @override
+  String toString() {
+    return 'CacheAccessRecord(path: $path, lastAccess: $lastAccess, accessCount: $accessCount)';
+  }
+}
+
+/// 后台LRU缓存管理器
+class _LRUCacheManager {
+  _LRUCacheManager({
+    required this.config,
+    required this.cacheFileSystem,
+    required this.cacheDir,
+  });
+
+  final LRUCacheConfig config;
+  final IFileSystem cacheFileSystem;
+  final Path cacheDir;
+
+  final Map<String, _CacheAccessRecord> _accessRecords = {};
+  Timer? _cleanupTimer;
+  bool _isCleanupRunning = false;
+
+  /// 启动后台清理任务
+  void startBackgroundCleanup(Logger logger) {
+    if (!config.enabled) return;
+
+    _cleanupTimer?.cancel();
+    _cleanupTimer = Timer.periodic(config.cleanupInterval, (timer) {
+      if (!_isCleanupRunning) {
+        final newContext = Context(
+          logger: logger,
+          operationID: const Uuid().v7(),
+        );
+        unawaited(_performLRUCleanup(newContext));
+      }
+    });
+  }
+
+  /// 停止后台清理任务
+  void stopBackgroundCleanup() {
+    _cleanupTimer?.cancel();
+    _cleanupTimer = null;
+  }
+
+  /// 记录缓存访问
+  void recordCacheAccess(String path, String cacheFilePath) {
+    if (!config.enabled) return;
+
+    final record = _accessRecords[path];
+    if (record != null) {
+      record.recordAccess();
+    } else {
+      _accessRecords[path] = _CacheAccessRecord(
+        path: path,
+        lastAccess: DateTime.now(),
+        accessCount: 1,
+        cacheFilePath: cacheFilePath,
+      );
+    }
+  }
+
+  /// 移除缓存访问记录
+  void removeCacheRecord(String path) {
+    _accessRecords.remove(path);
+  }
+
+  /// 执行LRU清理
+  Future<void> _performLRUCleanup(Context context) async {
+    if (_isCleanupRunning || !config.enabled) return;
+
+    _isCleanupRunning = true;
+    final logger = context.logger;
+
+    try {
+      logger.debug(
+        '开始LRU缓存清理',
+        metadata: {
+          'current_cache_count': _accessRecords.length,
+          'max_cache_size': config.maxCacheSize,
+          'operation': 'lru_cleanup_start',
+        },
+      );
+
+      if (_accessRecords.length <= config.maxCacheSize) {
+        logger.trace(
+          'LRU清理跳过：缓存数量未超限',
+          metadata: {
+            'current_count': _accessRecords.length,
+            'max_size': config.maxCacheSize,
+            'operation': 'lru_cleanup_skipped',
+          },
+        );
+        return;
+      }
+
+      // 按最后访问时间排序，最久未访问的排前面
+      final sortedRecords = _accessRecords.values.toList()
+        ..sort((a, b) => a.lastAccess.compareTo(b.lastAccess));
+
+      final toRemoveCount =
+          _accessRecords.length - config.maxCacheSize + config.cleanupBatchSize;
+      final recordsToRemove = sortedRecords.take(toRemoveCount).toList();
+
+      logger.debug(
+        'LRU清理计划',
+        metadata: {
+          'total_records': _accessRecords.length,
+          'to_remove_count': recordsToRemove.length,
+          'batch_size': config.cleanupBatchSize,
+          'operation': 'lru_cleanup_plan',
+        },
+      );
+
+      int successCount = 0;
+      int failureCount = 0;
+
+      for (final record in recordsToRemove) {
+        try {
+          final cacheFilePath = Path.fromString(record.cacheFilePath);
+          if (await cacheFileSystem.exists(context, cacheFilePath)) {
+            await cacheFileSystem.delete(context, cacheFilePath);
+          }
+          _accessRecords.remove(record.path);
+          successCount++;
+        } catch (e, stackTrace) {
+          logger.warning(
+            'LRU缓存文件删除失败',
+            error: e,
+            stackTrace: stackTrace,
+            metadata: {
+              'path': record.path,
+              'cache_file': record.cacheFilePath,
+              'operation': 'lru_cache_delete_failed',
+            },
+          );
+          failureCount++;
+        }
+      }
+
+      logger.info(
+        'LRU缓存清理完成',
+        metadata: {
+          'removed_count': successCount,
+          'failed_count': failureCount,
+          'remaining_count': _accessRecords.length,
+          'operation': 'lru_cleanup_completed',
+        },
+      );
+    } catch (e, stackTrace) {
+      logger.error(
+        'LRU缓存清理过程异常',
+        error: e,
+        stackTrace: stackTrace,
+        metadata: {'operation': 'lru_cleanup_error'},
+      );
+    } finally {
+      _isCleanupRunning = false;
+    }
+  }
+
+  /// 获取缓存统计信息
+  Map<String, dynamic> getCacheStats() {
+    if (!config.enabled) {
+      return {'lru_enabled': false};
+    }
+
+    final now = DateTime.now();
+    var recentAccessCount = 0;
+    var oldAccessCount = 0;
+
+    for (final record in _accessRecords.values) {
+      final timeSinceAccess = now.difference(record.lastAccess);
+      if (timeSinceAccess.inMinutes < 10) {
+        recentAccessCount++;
+      } else {
+        oldAccessCount++;
+      }
+    }
+
+    return {
+      'lru_enabled': true,
+      'total_records': _accessRecords.length,
+      'max_cache_size': config.maxCacheSize,
+      'recent_access_count': recentAccessCount,
+      'old_access_count': oldAccessCount,
+      'cleanup_interval_minutes': config.cleanupInterval.inMinutes,
+      'cleanup_running': _isCleanupRunning,
+    };
+  }
+
+  /// 手动触发LRU清理
+  Future<void> manualCleanup(Context context) async {
+    await _performLRUCleanup(context);
+  }
+
+  /// 销毁管理器
+  void dispose() {
+    stopBackgroundCleanup();
+    _accessRecords.clear();
+  }
+}
 
 /// 缓存存储管理器，负责底层缓存文件的读写操作
 class _CacheStorageManager {
-  _CacheStorageManager({required this.cacheFileSystem, required this.cacheDir});
+  _CacheStorageManager({
+    required this.cacheFileSystem,
+    required this.cacheDir,
+    LRUCacheConfig lruConfig = const LRUCacheConfig(),
+  }) {
+    _lruManager = _LRUCacheManager(
+      config: lruConfig,
+      cacheFileSystem: cacheFileSystem,
+      cacheDir: cacheDir,
+    );
+  }
 
   final IFileSystem cacheFileSystem;
   final Path cacheDir;
+  late final _LRUCacheManager _lruManager;
+
+  /// 启动后台LRU清理
+  void startLRUCleanup(Logger logger) {
+    _lruManager.startBackgroundCleanup(logger);
+  }
+
+  /// 停止后台LRU清理
+  void stopLRUCleanup() {
+    _lruManager.stopBackgroundCleanup();
+  }
+
+  /// 手动触发LRU清理
+  Future<void> performManualCleanup(Context context) async {
+    await _lruManager.manualCleanup(context);
+  }
+
+  /// 获取LRU统计信息
+  Map<String, dynamic> getLRUStats() {
+    return _lruManager.getCacheStats();
+  }
+
+  /// 销毁管理器
+  void dispose() {
+    _lruManager.dispose();
+  }
 
   /// 基于SHA256生成文件路径的hash值，16个字符
   String _generatePathHash(Context context, Path path) {
@@ -85,6 +368,9 @@ class _CacheStorageManager {
       final json = jsonDecode(jsonStr) as Map<String, dynamic>;
 
       final cacheData = MetadataCacheData.fromJson(json);
+
+      // 记录LRU访问
+      _lruManager.recordCacheAccess(path.toString(), cacheFilePath.toString());
 
       logger.trace(
         '缓存读取成功',
@@ -164,6 +450,10 @@ class _CacheStorageManager {
       final cacheFilePath = _buildCacheMetadataFile(context, path);
       if (await cacheFileSystem.exists(context, cacheFilePath)) {
         await cacheFileSystem.delete(context, cacheFilePath);
+
+        // 移除LRU记录
+        _lruManager.removeCacheRecord(path.toString());
+
         logger.trace(
           '缓存删除成功',
           metadata: {
@@ -256,10 +546,12 @@ class MetadataCacheOperation {
     required Path cacheDir,
     Duration maxCacheAge = const Duration(minutes: 30),
     this.largeDirectoryThreshold = 1000,
-  }) {
+    LRUCacheConfig lruConfig = const LRUCacheConfig(),
+  }) : _lruConfig = lruConfig {
     _storageManager = _CacheStorageManager(
       cacheFileSystem: cacheFileSystem,
       cacheDir: cacheDir,
+      lruConfig: lruConfig,
     );
     _cacheStrategy = _CacheStrategyManager(
       maxCacheAge: maxCacheAge,
@@ -269,6 +561,7 @@ class MetadataCacheOperation {
 
   final IFileSystem originFileSystem;
   final int largeDirectoryThreshold;
+  final LRUCacheConfig _lruConfig;
 
   late final _CacheStorageManager _storageManager;
   late final _CacheStrategyManager _cacheStrategy;
@@ -467,5 +760,40 @@ class MetadataCacheOperation {
     if (parentPath != null) {
       await _refreshMetadataCache(context, parentPath);
     }
+  }
+
+  void startLRUCleanup(Logger logger) {
+    _storageManager.startLRUCleanup(logger);
+  }
+
+  /// 停止后台LRU清理任务
+  void stopLRUCleanup() {
+    _storageManager.stopLRUCleanup();
+  }
+
+  /// 手动触发LRU清理
+  Future<void> performManualLRUCleanup(Context context) async {
+    await _storageManager.performManualCleanup(context);
+  }
+
+  /// 获取缓存统计信息（包含LRU信息）
+  Map<String, dynamic> getCacheStats() {
+    final baseStats = {
+      'large_directory_threshold': largeDirectoryThreshold,
+      'lru_config': {
+        'enabled': _lruConfig.enabled,
+        'max_cache_size': _lruConfig.maxCacheSize,
+        'cleanup_interval_minutes': _lruConfig.cleanupInterval.inMinutes,
+        'cleanup_batch_size': _lruConfig.cleanupBatchSize,
+      },
+    };
+
+    final lruStats = _storageManager.getLRUStats();
+    return {...baseStats, ...lruStats};
+  }
+
+  /// 销毁缓存操作实例
+  void dispose() {
+    _storageManager.dispose();
   }
 }
