@@ -45,7 +45,7 @@ class HttpServer {
           // 根目录列表
           return await _handleList(context, Path.rootPath, request);
         } else {
-          final path = Path(pathSegments);
+          final path = Path.rootPath.joinAll(pathSegments);
 
           // 检查是否存在查询参数来强制列表操作
           if (request.url.queryParameters.containsKey('list')) {

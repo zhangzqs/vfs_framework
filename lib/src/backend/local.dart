@@ -52,11 +52,11 @@ class LocalFileSystem extends IFileSystem with FileSystemHelper {
           'operation': 'convert_root_directory',
         },
       );
-      return Path([]);
+      return Path.rootPath;
     }
 
     // 使用path包分割路径
-    final abstractPath = Path(p.split(relative));
+    final abstractPath = Path.rootPath.joinAll(p.split(relative));
     logger.trace(
       '转换完成',
       metadata: {

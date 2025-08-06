@@ -30,7 +30,7 @@ class AliasFileSystem extends IFileSystem {
       return aliasPath;
     }
     // 将alias路径与子目录路径合并
-    final realPath = Path([...subDirectory.segments, ...aliasPath.segments]);
+    final realPath = subDirectory.joinAll(aliasPath.segments);
     logger.trace(
       '转换别名路径',
       metadata: {
@@ -92,7 +92,7 @@ class AliasFileSystem extends IFileSystem {
     }
 
     // 移除子目录前缀
-    final aliasPath = Path(
+    final aliasPath = Path.rootPath.joinAll(
       realPath.segments.sublist(subDirectory.segments.length),
     );
     logger.trace(

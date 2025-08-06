@@ -55,7 +55,7 @@ class MemoryFileSystem extends IFileSystem
   MemoryFileSystem();
 
   final _rootDir = _MemoryFileEntity(
-    FileStatus(path: Path([]), isDirectory: true),
+    FileStatus(path: Path.rootPath, isDirectory: true),
     children: <String, _MemoryFileEntity>{},
   );
 
@@ -320,13 +320,12 @@ class MemoryFileSystem extends IFileSystem
       if (options.recursive) {
         // 递归复制子项
         await for (final child in nonRecursiveList(context, source)) {
-          final childRelativePath = Path(
-            child.path.segments.skip(source.segments.length).toList(),
+          final childRelativePath = Path.rootPath.joinAll(
+            child.path.segments.skip(source.segments.length),
           );
-          final childDestination = Path([
-            ...destination.segments,
-            ...childRelativePath.segments,
-          ]);
+          final childDestination = destination.joinAll(
+            childRelativePath.segments,
+          );
           await copy(context, child.path, childDestination, options: options);
         }
       }

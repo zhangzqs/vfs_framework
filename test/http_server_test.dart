@@ -17,21 +17,24 @@ void main() {
       httpServer = HttpServer(fs);
 
       // 创建测试文件和目录结构
-      await fs.createDirectory(context, Path(['documents']));
-      await fs.createDirectory(context, Path(['documents', 'subfolder']));
+      await fs.createDirectory(context, Path.rootPath.join('documents'));
+      await fs.createDirectory(
+        context,
+        Path.rootPath.joinAll(['documents', 'subfolder']),
+      );
       await fs.writeBytes(
         context,
-        Path(['documents', 'test.txt']),
+        Path.rootPath.joinAll(['documents', 'test.txt']),
         Uint8List.fromList('Hello, World!'.codeUnits),
       );
       await fs.writeBytes(
         context,
-        Path(['documents', 'subfolder', 'nested.txt']),
+        Path.rootPath.joinAll(['documents', 'subfolder', 'nested.txt']),
         Uint8List.fromList('Nested file content'.codeUnits),
       );
       await fs.writeBytes(
         context,
-        Path(['root-file.md']),
+        Path.rootPath.join('root-file.md'),
         Uint8List.fromList('# Root File\nThis is a root file.'.codeUnits),
       );
     });

@@ -2,23 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 final class Path extends Equatable {
-  Path(this.segments)
-    : assert(
-        segments.every(
-          (s) =>
-              s.isNotEmpty &&
-              !s.contains('/') &&
-              !s.contains('\\') &&
-              !s.contains('..') &&
-              !s.contains('.'),
-        ),
-        'Path segments cannot be empty strings',
-      );
-  static final rootPath = Path(const []);
-
-  final List<String> segments;
-
-  static Path fromString(String path) {
+  factory Path.fromString(String path) {
     // 自动处理.和..，并去除多余的斜杠
     List<String> parts = path.split('/');
     List<String> cleanedParts = [];
@@ -33,8 +17,24 @@ final class Path extends Equatable {
         cleanedParts.add(part); // 添加有效部分
       }
     }
-    return Path(cleanedParts);
+    return Path._internal(cleanedParts);
   }
+  Path._internal(this.segments) {
+    for (final segment in segments) {
+      if (segment.contains('/')) {
+        throw ArgumentError('Path segments cannot contain "/"');
+      }
+      if (segment.contains('\\')) {
+        throw ArgumentError('Path segments cannot contain "\\"');
+      }
+      if (segment == '' || segment == '.' || segment == '..') {
+        throw ArgumentError('Path segments cannot be empty, ".", or ".."');
+      }
+    }
+  }
+  static final rootPath = Path._internal([]);
+
+  final List<String> segments;
 
   /// 获取路径的文件名
   String? get filename {
@@ -44,14 +44,21 @@ final class Path extends Equatable {
 
   /// 拼接路径
   Path join(String segment) {
-    if (segment.isEmpty) return this;
-    return Path([...segments, segment]);
+    return joinAll([segment]);
+  }
+
+  Path joinAll(Iterable<String> segments) {
+    if (segments.isEmpty) return this;
+    return Path._internal([
+      ...this.segments,
+      ...segments.where((s) => s.isNotEmpty),
+    ]);
   }
 
   /// 获取路径的父目录
   Path? get parent {
     if (segments.isEmpty) return null;
-    return Path(segments.sublist(0, segments.length - 1));
+    return Path._internal(segments.sublist(0, segments.length - 1));
   }
 
   bool get isRoot => segments.isEmpty;

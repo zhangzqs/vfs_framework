@@ -132,7 +132,7 @@ class WebDAVServer {
     }
 
     logger.trace('解析路径: ${request.url.path} -> segments: $segments');
-    return Path(segments);
+    return Path.rootPath.joinAll(segments);
   }
 
   /// 处理GET请求 - 读取文件或列出目录
@@ -303,7 +303,7 @@ class WebDAVServer {
     }
 
     final destinationUri = Uri.parse(destinationHeader);
-    final destinationPath = Path(destinationUri.pathSegments);
+    final destinationPath = Path.rootPath.joinAll(destinationUri.pathSegments);
 
     final overwriteHeader = request.headers['overwrite']?.toLowerCase();
     final overwrite = overwriteHeader == 't' || overwriteHeader == 'true';
@@ -335,7 +335,7 @@ class WebDAVServer {
     }
 
     final destinationUri = Uri.parse(destinationHeader);
-    final destinationPath = Path(destinationUri.pathSegments);
+    final destinationPath = Path.rootPath.joinAll(destinationUri.pathSegments);
 
     final overwriteHeader = request.headers['overwrite']?.toLowerCase();
     final overwrite = overwriteHeader == 't' || overwriteHeader == 'true';

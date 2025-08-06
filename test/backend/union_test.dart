@@ -497,12 +497,12 @@ void main() {
       // 在fs1中创建一些测试文件
       await fs1.writeBytes(
         context,
-        Path(['test1.txt']),
+        Path.rootPath.join('test1.txt'),
         Uint8List.fromList([1, 2, 3]),
       );
       await fs2.writeBytes(
         context,
-        Path(['test2.txt']),
+        Path.rootPath.join('test2.txt'),
         Uint8List.fromList([4, 5, 6]),
       );
 
@@ -511,12 +511,12 @@ void main() {
         items: [
           UnionFileSystemItem(
             fileSystem: fs1,
-            mountPath: Path(['data']), // 挂载到 /data
+            mountPath: Path.rootPath.join('data'), // 挂载到 /data
             priority: 1,
           ),
           UnionFileSystemItem(
             fileSystem: fs2,
-            mountPath: Path(['config']), // 挂载到 /config
+            mountPath: Path.rootPath.join('config'), // 挂载到 /config
             priority: 2,
           ),
         ],
@@ -582,12 +582,12 @@ void main() {
         // 在根文件系统中创建文件
         await rootFs.writeBytes(
           context,
-          Path(['root_file.txt']),
+          Path.rootPath.join('root_file.txt'),
           Uint8List.fromList([1, 2, 3]),
         );
         await childFs.writeBytes(
           context,
-          Path(['child_file.txt']),
+          Path.rootPath.join('child_file.txt'),
           Uint8List.fromList([4, 5, 6]),
         );
 
@@ -601,7 +601,7 @@ void main() {
             ),
             UnionFileSystemItem(
               fileSystem: childFs,
-              mountPath: Path(['data']), // 挂载到 /data
+              mountPath: Path.rootPath.join('data'), // 挂载到 /data
               priority: 2,
             ),
           ],
@@ -614,7 +614,7 @@ void main() {
         // 测试可以访问根文件系统中的文件
         final rootFileExists = await unionFs.exists(
           context,
-          Path(['root_file.txt']),
+          Path.rootPath.join('root_file.txt'),
         );
         expect(
           rootFileExists,
@@ -625,7 +625,7 @@ void main() {
         // 测试可以访问子挂载点中的文件
         final childFileExists = await unionFs.exists(
           context,
-          Path(['data', 'child_file.txt']),
+          Path.rootPath.joinAll(['data', 'child_file.txt']),
         );
         expect(
           childFileExists,
@@ -646,12 +646,12 @@ void main() {
         items: [
           UnionFileSystemItem(
             fileSystem: fs1,
-            mountPath: Path(['data']),
+            mountPath: Path.rootPath.join('data'),
             priority: 1,
           ),
           UnionFileSystemItem(
             fileSystem: fs2,
-            mountPath: Path(['config']),
+            mountPath: Path.rootPath.join('config'),
             priority: 2,
           ),
         ],

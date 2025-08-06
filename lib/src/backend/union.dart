@@ -73,8 +73,9 @@ class UnionFileSystem extends IFileSystem {
     if (mountPath.isRoot) return unionPath;
 
     // 移除挂载点前缀
-    final segments = unionPath.segments.sublist(mountPath.segments.length);
-    final ret = Path(segments);
+    final ret = Path.rootPath.joinAll(
+      unionPath.segments.sublist(mountPath.segments.length),
+    );
     logger.trace(
       '转换路径',
       metadata: {
@@ -304,16 +305,11 @@ class UnionFileSystem extends IFileSystem {
           sourceInternalPath,
           options: const ListOptions(recursive: true),
         )) {
-          final relativePath = Path(
-            item.path.segments
-                .skip(sourceInternalPath.segments.length)
-                .toList(),
+          final relativePath = Path.rootPath.joinAll(
+            item.path.segments.skip(sourceInternalPath.segments.length),
           );
-          final srcPath = Path([...source.segments, ...relativePath.segments]);
-          final dstPath = Path([
-            ...destination.segments,
-            ...relativePath.segments,
-          ]);
+          final srcPath = source.joinAll(relativePath.segments);
+          final dstPath = destination.joinAll(relativePath.segments);
           await copy(context, srcPath, dstPath, options: options);
         }
       }
@@ -584,7 +580,7 @@ class UnionFileSystem extends IFileSystem {
 
           if (isChildOfPath) {
             final mountPointName = item.mountPath.segments.last;
-            final mountPointPath = Path([...path.segments, mountPointName]);
+            final mountPointPath = path.join(mountPointName);
             final pathKey = mountPointPath.toString();
 
             if (!seenPaths.contains(pathKey)) {
@@ -614,10 +610,9 @@ class UnionFileSystem extends IFileSystem {
           options: options,
         )) {
           // 将内部路径转换回union路径
-          final unionPath = Path([
-            ...path.segments,
-            ...status.path.segments.skip(internalPath.segments.length),
-          ]);
+          final unionPath = path.joinAll(
+            status.path.segments.skip(internalPath.segments.length),
+          );
           final pathKey = unionPath.toString();
 
           // 避免重复项目（高优先级的会先出现）
