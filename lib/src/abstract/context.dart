@@ -8,7 +8,7 @@ import 'errors.dart';
 class Context {
   Context({Logger? logger, String? operationID})
     : logger = logger ?? defaultLogger,
-      _operationID = operationID ?? const Uuid().v8();
+      _operationID = operationID ?? const Uuid().v7();
 
   String get operationID => _operationID;
   final String _operationID;

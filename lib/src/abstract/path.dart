@@ -2,13 +2,19 @@ import 'package:equatable/equatable.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 final class Path extends Equatable {
-  Path(this.segments) {
-    // 禁止出现.和..
-    if (segments.any((segment) => segment == '.' || segment == '..')) {
-      throw ArgumentError('Path segments cannot contain "." or ".."');
-    }
-  }
-  static final rootPath = Path([]);
+  Path(this.segments)
+    : assert(
+        segments.every(
+          (s) =>
+              s.isNotEmpty &&
+              !s.contains('/') &&
+              !s.contains('\\') &&
+              !s.contains('..') &&
+              !s.contains('.'),
+        ),
+        'Path segments cannot be empty strings',
+      );
+  static final rootPath = Path(const []);
 
   final List<String> segments;
 

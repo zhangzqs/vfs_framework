@@ -136,4 +136,23 @@ abstract class IFileSystem {
     Path path, {
     ExistsOptions options = const ExistsOptions(),
   });
+  Future<void> dispose(Context context) async {}
+}
+
+final class QuotaInfo {
+  const QuotaInfo({this.entityCount = 0, this.totalSize = 0});
+  final int entityCount;
+  final int totalSize;
+}
+
+final class GetQuotaOptions {
+  const GetQuotaOptions();
+}
+
+abstract interface class IQuotaFileSystem implements IFileSystem {
+  Future<QuotaInfo> getQuotaInfo(
+    Context context, {
+    Path? path,
+    GetQuotaOptions options = const GetQuotaOptions(),
+  });
 }
